@@ -2102,7 +2102,17 @@
                 },
                 
                 searchAddress() {
-                    if (!this.searchQuery || !this.map) return;
+                    if (!this.searchQuery) {
+                        console.log('No search query entered');
+                        return;
+                    }
+                    
+                    if (!this.map) {
+                        console.error('Map not initialized');
+                        return;
+                    }
+                    
+                    console.log('🔍 Searching for:', this.searchQuery);
                     
                     // Check if searching for a tag
                     if (this.searchQuery.startsWith('#')) {
@@ -2112,12 +2122,24 @@
                         return;
                     }
                     
-                    // Otherwise search for address/location
-                    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(this.searchQuery)}.json?access_token=${mapboxgl.accessToken}`)
-                        .then(response => response.json())
+                    // Otherwise search for address/location using Mapbox Geocoding
+                    const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(this.searchQuery)}.json?access_token=${mapboxgl.accessToken}`;
+                    console.log('Geocoding URL:', geocodeUrl.replace(mapboxgl.accessToken, 'TOKEN_HIDDEN'));
+                    
+                    fetch(geocodeUrl)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`Geocoding failed: ${response.status}`);
+                            }
+                            return response.json();
+                        })
                         .then(data => {
+                            console.log('Geocoding response:', data);
+                            
                             if (data.features && data.features.length > 0) {
-                                const [lng, lat] = data.features[0].center;
+                                const feature = data.features[0];
+                                const [lng, lat] = feature.center;
+                                console.log(`📍 Found location: ${feature.place_name} at ${lat}, ${lng}`);
                                 
                                 // Fly to the location
                                 this.map.flyTo({
@@ -2128,7 +2150,7 @@
                                     duration: 2000
                                 });
                                 
-                                // Add a temporary marker
+                                // Add a temporary marker for the searched location
                                 const el = document.createElement('div');
                                 el.style.cssText = `
                                     width: 30px;
@@ -2144,17 +2166,18 @@
                                     .setPopup(new mapboxgl.Popup().setHTML(`<div class="p-2"><strong>📍 ${this.searchQuery}</strong></div>`))
                                     .addTo(this.map);
                                     
-                                // Clear search
+                                // Clear search after successful search
                                 setTimeout(() => {
                                     this.searchQuery = '';
-                                }, 2000);
+                                }, 3000);
                             } else {
-                                alert('Location not found. Try a different search.');
+                                console.log('No results found for:', this.searchQuery);
+                                alert(`No results found for "${this.searchQuery}". Try:\n- A full address (123 Main St, City, State)\n- A city name\n- A landmark or place name`);
                             }
                         })
                         .catch(error => {
                             console.error('Search error:', error);
-                            alert('Error searching for location');
+                            alert('Error searching for location. Please check your internet connection.');
                         });
                 },
                 
