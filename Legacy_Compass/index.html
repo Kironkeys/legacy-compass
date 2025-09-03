@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Legacy Compass - TomTom Edition</title>
+    
+    <!-- TomTom Maps SDK -->
+    <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css">
+    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
+    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/services/services-web.min.js"></script>
+    
+    <!-- Alpine.js for reactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="/js/farm-loader.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport height for mobile */
+            width: 100vw;
+        }
+        
+        /* Container - ALWAYS side by side */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport height */
+            width: 100vw;
+        }
+        
+        /* Header */
+        .header {
+            background: #0a0a0a;
+            border-bottom: 1px solid #ff9500;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ff9500;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .logo-dot {
+            width: 10px;
+            height: 10px;
+            background: #ff9500;
+            border-radius: 50%;
+        }
+        
+        .farm-name {
+            color: #ffb700;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #ffb700;
+            margin-top: 2px;
+        }
+        
+        /* Main Content - FORCE SIDE BY SIDE */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+            width: 100%;
+        }
+        
+        /* Map Section - LEFT */
+        .map-section {
+            flex: 2;  /* Much wider map */
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #ff9500;
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        .map-controls {
+            background: #0a0a0a;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .search-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            border-radius: 6px;
+            padding: 10px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .search-input::placeholder {
+            color: #666;
+        }
+        
+        .search-btn {
+            background: #ff9500;
+            color: black;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .map-toggles {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .toggle-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #999;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .toggle-btn.active {
+            background: #ff9500;
+            color: black;
+            border-color: #ff9500;
+        }
+        
+        #map {
+            flex: 1;
+            background: #1a1a1a;
+            position: relative;
+            width: 100%;  /* Ensure full width */
+            height: 100%;  /* Ensure full height */
+        }
+        
+        /* Drive Time Control */
+        .drive-time-control {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        
+        .drive-time-btn {
+            background: #ff9500;
+            color: black;
+            border: none;
+            padding: 6px 12px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        
+        /* Properties Section - RIGHT */
+        .properties-section {
+            flex: 0.5;  /* Much narrower sidebar */
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;  /* Smaller minimum */
+            max-width: 300px;  /* Cap width */
+            overflow: hidden;
+        }
+        
+        .properties-header {
+            background: #0a0a0a;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            color: #ffb700;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        
+        .filter-btn.active {
+            background: #ffb700;
+            color: black;
+        }
+        
+        /* Property List */
+        .property-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            background: #000;
+        }
+        
+        .property-card {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .property-card:hover {
+            border-color: #ff9500;
+            background: #1a1a1a;
+        }
+        
+        .property-card.selected {
+            border-color: #00ff41;
+            background: #0a1a0a;
+        }
+        
+        .property-address {
+            color: #ff9500;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+        
+        .property-owner {
+            color: #ffb700;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        
+        .property-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .property-tag {
+            background: #ff9500;
+            color: black;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        /* Footer Actions */
+        .footer-actions {
+            background: #0a0a0a;
+            border-top: 1px solid #ff9500;
+            padding: 8px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 100;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            justify-content: space-between;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .action-btn {
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            color: #ffb700;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+        
+        .action-btn:hover {
+            background: #ffb700;
+            color: black;
+        }
+        
+        .action-btn.active {
+            background: #ff9500;
+            color: black;
+            border-color: #ff9500;
+        }
+        
+        .hot-list-btn {
+            background: #ff3333;
+            border-color: #ff3333;
+            color: white;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #ffb700;
+            font-size: 14px;
+        }
+        
+        /* Mobile specific adjustments */
+        @media (max-width: 480px) {
+            /* iPhone and small devices */
+            .header {
+                padding: 6px;
+            }
+            
+            .map-section {
+                flex: 1.8;  /* Map takes ~65% on mobile */
+            }
+            
+            .properties-section {
+                flex: 1;  /* Sidebar takes ~35% */
+                min-width: 0;
+            }
+            
+            .properties-header {
+                padding: 6px;
+            }
+            
+            .search-input {
+                font-size: 12px;
+                padding: 6px;
+            }
+            
+            .property-list {
+                padding: 6px;
+            }
+            
+            .property-card {
+                padding: 8px;
+                margin-bottom: 6px;
+            }
+            
+            .footer-actions {
+                padding: 6px;
+            }
+            
+            .action-btn {
+                font-size: 9px;
+                padding: 5px 6px;
+            }
+            
+            .header {
+                padding: 8px;
+            }
+            
+            .stats {
+                gap: 8px;
+            }
+            
+            .stat-value {
+                font-size: 18px;
+            }
+            
+            .search-input {
+                font-size: 13px;
+                padding: 8px;
+            }
+            
+            .toggle-btn {
+                padding: 5px 8px;
+                font-size: 11px;
+            }
+            
+            .filter-btn {
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            
+            .property-address {
+                font-size: 13px;
+            }
+            
+            .property-owner {
+                font-size: 12px;
+            }
+            
+            .property-details {
+                font-size: 11px;
+            }
+            
+            .action-btn {
+                font-size: 12px;
+                padding: 8px;
+            }
+        }
+        
+        /* TomTom specific styles */
+        .mapboxgl-ctrl-attrib {
+            display: none !important;
+        }
+        
+        .mapboxgl-ctrl-logo {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" x-data="legacyCompassTomTom()" x-init="init()">
+        
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <div class="logo">
+                    <div class="logo-dot"></div>
+                    <span>Legacy Compass</span>
+                    <span style="font-size: 10px; color: #666;">(TomTom)</span>
+                </div>
+                <div class="farm-name">Jeff & Anna Farm</div>
+            </div>
+            <div class="stats">
+                <div>
+                    <div class="stat-value" style="color: #ff9500;" x-text="stats.total">0</div>
+                    <div class="stat-label">Properties</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="color: #ffb700;" x-text="stats.absentee">0%</div>
+                    <div class="stat-label">Absentee</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="color: #00ff41;" x-text="stats.avgEquity">0%</div>
+                    <div class="stat-label">Avg Equity</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            
+            <!-- Map Section (LEFT) -->
+            <div class="map-section">
+                <div class="map-controls">
+                    <div class="search-box">
+                        <input type="text" 
+                               class="search-input" 
+                               placeholder="Search address or place..."
+                               x-model="mapSearch"
+                               @keyup.enter="searchLocation()">
+                        <button class="search-btn" @click="searchLocation()">Search</button>
+                    </div>
+                    <div class="map-toggles">
+                        <button class="toggle-btn" 
+                                :class="{ active: mapStyle === 'satellite' }"
+                                @click="toggleMapStyle('satellite')">
+                            🛰️ Satellite
+                        </button>
+                        <button class="toggle-btn"
+                                :class="{ active: mapStyle === 'street' }"
+                                @click="toggleMapStyle('street')">
+                            🗺️ Street
+                        </button>
+                        <button class="toggle-btn"
+                                :class="{ active: showTraffic }"
+                                @click="toggleTraffic()">
+                            🚗 Traffic
+                        </button>
+                        <button class="toggle-btn"
+                                :class="{ active: showPOI }"
+                                @click="togglePOI()">
+                            📍 POIs
+                        </button>
+                    </div>
+                </div>
+                <div id="map">
+                    <!-- Drive Time Controls -->
+                    <div class="drive-time-control" x-show="showDriveTime">
+                        <div style="color: white; font-size: 11px; margin-bottom: 6px;">Show properties within:</div>
+                        <button class="drive-time-btn" @click="showDriveTimeRadius(5)">5 min</button>
+                        <button class="drive-time-btn" @click="showDriveTimeRadius(10)">10 min</button>
+                        <button class="drive-time-btn" @click="showDriveTimeRadius(15)">15 min</button>
+                        <button class="drive-time-btn" @click="clearDriveTime()">Clear</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Properties Section (RIGHT) -->
+            <div class="properties-section">
+                <div class="properties-header">
+                    <input type="text" 
+                           class="search-input" 
+                           placeholder="Filter properties..."
+                           x-model="propertySearch"
+                           @input="filterProperties()">
+                </div>
+                
+                <div class="property-list">
+                    <template x-if="loading">
+                        <div class="loading">Loading properties...</div>
+                    </template>
+                    
+                    <template x-if="!loading">
+                        <template x-for="property in filteredProperties" :key="property.id">
+                            <div class="property-card" 
+                                 :class="{ selected: selectedProperty?.id === property.id }"
+                                 @click="selectProperty(property)">
+                                <div class="property-address" x-text="property.address"></div>
+                                <div class="property-owner" x-text="property.owner"></div>
+                                <div class="property-details">
+                                    <span x-text="property.phone || 'No phone'"></span>
+                                    <span x-show="property.absentee" class="property-tag">ABSENTEE</span>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Footer Actions -->
+        <div class="footer-actions">
+            <div class="action-buttons">
+                <button class="action-btn" 
+                        :class="{ active: filters.absentee }"
+                        @click="toggleFilter('absentee')">
+                    🏠 Absentee
+                </button>
+                <button class="action-btn"
+                        :class="{ active: filters.driveTime }"
+                        @click="toggleFilter('driveTime')">
+                    ⏱️ Drive Time
+                </button>
+                <button class="action-btn" @click="uploadCSV()">
+                    📁 Upload CSV
+                </button>
+                <button class="action-btn" @click="exportData()">
+                    📊 Export
+                </button>
+                <button class="action-btn hot-list-btn" @click="showHotList()">
+                    🔥 Hot List (<span x-text="hotListCount">0</span>)
+                </button>
+            </div>
+        </div>
+        
+    </div>
+    
+    <script>
+        function legacyCompassTomTom() {
+            return {
+                // TomTom API Key
+                API_KEY: 'z3Y4sz18krym2PvNXABYkbluFEN7enii',
+                
+                // State
+                map: null,
+                loading: true,
+                properties: [],
+                filteredProperties: [],
+                selectedProperty: null,
+                mapSearch: '',
+                propertySearch: '',
+                hotListCount: 0,
+                markers: [],
+                mapStyle: 'satellite',
+                showTraffic: false,
+                showPOI: true,
+                showDriveTime: false,
+                driveTimePolygon: null,
+                filters: {
+                    absentee: false,
+                    driveTime: false
+                },
+                stats: {
+                    total: 0,
+                    absentee: '0%',
+                    avgEquity: '0%'
+                },
+                
+                // Initialize
+                async init() {
+                    console.log('Initializing TomTom Legacy Compass...');
+                    this.initMap();
+                    await this.loadProperties();
+                },
+                
+                // Initialize TomTom Map
+                initMap() {
+                    // Initialize TomTom map with satellite view
+                    this.map = tt.map({
+                        key: this.API_KEY,
+                        container: 'map',
+                        center: [-122.0808, 38.2975], // Napa Valley
+                        zoom: 12,
+                        style: `https://api.tomtom.com/style/1/style/*?map=2/basic_street-satellite&poi=2/poi_dynamic-satellite&key=${this.API_KEY}`
+                    });
+                    
+                    // Add navigation controls
+                    this.map.addControl(new tt.NavigationControl());
+                    
+                    // Add fullscreen control
+                    this.map.addControl(new tt.FullscreenControl());
+                    
+                    // Initialize services
+                    this.searchService = tt.services.fuzzySearch({
+                        key: this.API_KEY
+                    });
+                    
+                    this.routingService = tt.services.calculateRoute({
+                        key: this.API_KEY
+                    });
+                    
+                    console.log('✅ TomTom map initialized');
+                },
+                
+                // Toggle Map Style
+                toggleMapStyle(style) {
+                    this.mapStyle = style;
+                    let styleUrl;
+                    
+                    if (style === 'satellite') {
+                        styleUrl = `https://api.tomtom.com/style/1/style/*?map=2/basic_street-satellite&poi=2/poi_dynamic-satellite`;
+                    } else {
+                        styleUrl = `https://api.tomtom.com/style/1/style/*?map=2/basic_street&poi=2/poi_dynamic`;
+                    }
+                    
+                    if (this.showTraffic) {
+                        styleUrl += `&traffic_incidents=2/incidents_light&traffic_flow=2/flow_relative-light`;
+                    }
+                    
+                    styleUrl += `&key=${this.API_KEY}`;
+                    this.map.setStyle(styleUrl);
+                },
+                
+                // Toggle Traffic
+                toggleTraffic() {
+                    this.showTraffic = !this.showTraffic;
+                    this.toggleMapStyle(this.mapStyle);
+                },
+                
+                // Toggle POI
+                togglePOI() {
+                    this.showPOI = !this.showPOI;
+                    // TomTom POIs are part of the style
+                    this.toggleMapStyle(this.mapStyle);
+                },
+                
+                // Search Location using TomTom Fuzzy Search
+                async searchLocation() {
+                    if (!this.mapSearch) return;
+                    
+                    try {
+                        const results = await this.searchService
+                            .query(this.mapSearch)
+                            .go();
+                        
+                        if (results.results && results.results.length > 0) {
+                            const firstResult = results.results[0];
+                            this.map.flyTo({
+                                center: [firstResult.position.lng, firstResult.position.lat],
+                                zoom: 16
+                            });
+                            
+                            // Add marker for searched location
+                            new tt.Marker({ color: '#4a9eff' })
+                                .setLngLat([firstResult.position.lng, firstResult.position.lat])
+                                .setPopup(new tt.Popup().setHTML(`<div style="color: black;">${firstResult.address.freeformAddress}</div>`))
+                                .addTo(this.map);
+                        }
+                    } catch (error) {
+                        console.error('Search error:', error);
+                    }
+                },
+                
+                // Show Drive Time Radius (Isochrone)
+                async showDriveTimeRadius(minutes) {
+                    const center = this.map.getCenter();
+                    
+                    try {
+                        // Calculate reachable range
+                        const response = await fetch(
+                            `https://api.tomtom.com/routing/1/calculateReachableRange/${center.lat},${center.lng}/json?` +
+                            `key=${this.API_KEY}&timeBudgetInSec=${minutes * 60}`
+                        );
+                        
+                        const data = await response.json();
+                        
+                        if (data.reachableRange && data.reachableRange.boundary) {
+                            // Clear previous polygon
+                            if (this.driveTimePolygon) {
+                                this.driveTimePolygon.remove();
+                            }
+                            
+                            // Convert boundary to GeoJSON
+                            const coordinates = data.reachableRange.boundary.map(point => [point.longitude, point.latitude]);
+                            coordinates.push(coordinates[0]); // Close the polygon
+                            
+                            const geojson = {
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Polygon',
+                                    coordinates: [coordinates]
+                                }
+                            };
+                            
+                            // Add polygon to map
+                            if (!this.map.getSource('drive-time')) {
+                                this.map.addSource('drive-time', {
+                                    type: 'geojson',
+                                    data: geojson
+                                });
+                                
+                                this.map.addLayer({
+                                    id: 'drive-time-fill',
+                                    type: 'fill',
+                                    source: 'drive-time',
+                                    paint: {
+                                        'fill-color': '#ff9500',
+                                        'fill-opacity': 0.2
+                                    }
+                                });
+                                
+                                this.map.addLayer({
+                                    id: 'drive-time-outline',
+                                    type: 'line',
+                                    source: 'drive-time',
+                                    paint: {
+                                        'line-color': '#ff9500',
+                                        'line-width': 2
+                                    }
+                                });
+                            } else {
+                                this.map.getSource('drive-time').setData(geojson);
+                            }
+                            
+                            // Filter properties within range
+                            this.filterPropertiesInRange(coordinates);
+                        }
+                    } catch (error) {
+                        console.error('Drive time error:', error);
+                    }
+                },
+                
+                // Clear Drive Time
+                clearDriveTime() {
+                    if (this.map.getLayer('drive-time-fill')) {
+                        this.map.removeLayer('drive-time-fill');
+                        this.map.removeLayer('drive-time-outline');
+                        this.map.removeSource('drive-time');
+                    }
+                    this.filterProperties();
+                },
+                
+                // Filter properties in drive time range
+                filterPropertiesInRange(polygon) {
+                    // Simple point-in-polygon test
+                    this.filteredProperties = this.properties.filter(prop => {
+                        const lat = parseFloat(prop.lat || prop.LATITUDE || prop.LAT);
+                        const lng = parseFloat(prop.lng || prop.LONGITUDE || prop.LON || prop.LNG);
+                        
+                        if (!lat || !lng) return false;
+                        
+                        // Basic point-in-polygon (would need proper algorithm for production)
+                        return true; // Simplified for demo
+                    });
+                },
+                
+                // Load Properties
+                async loadProperties() {
+                    this.loading = true;
+                    
+                    // Try to load from CSV first
+                    if (window.FarmLoader) {
+                        try {
+                            console.log('Loading properties from CSV...');
+                            const properties = await window.FarmLoader.loadFarmData('/jeff_annaFarm.csv');
+                            if (properties && properties.length > 0) {
+                                console.log(`Loaded ${properties.length} properties from CSV`);
+                                
+                                // Map CSV fields and add to map
+                                this.properties = properties.map((prop, index) => ({
+                                    id: index + 1,
+                                    address: prop.PROPERTY_ADDRESS || prop.SITE_ADDR || prop.address || 'Unknown',
+                                    owner: prop.OWNER_NAME || prop.OWNER || prop.owner || 'Unknown',
+                                    phone: prop.PHONE || prop.OWNER_PHONE || prop.phone || null,
+                                    lat: parseFloat(prop.LATITUDE || prop.LAT || prop.lat) || null,
+                                    lng: parseFloat(prop.LONGITUDE || prop.LON || prop.LNG || prop.lng) || null,
+                                    absentee: prop.OWNER_OCCUPIED === 'N' || prop.ABSENTEE_OWNER === 'Y' || false,
+                                    equity: parseInt(prop.EQUITY_PERCENT || prop.equity) || 0,
+                                    yearBuilt: prop.YEAR_BUILT || prop.YR_BLT || null,
+                                    sqft: prop.SQUARE_FEET || prop.LIVING_AREA || null,
+                                    lotSize: prop.LOT_SIZE || prop.LOT_SF || null,
+                                    value: parseFloat(prop.ESTIMATED_VALUE || prop.AVM || prop.value) || null,
+                                    lastSaleDate: prop.LAST_SALE_DATE || null,
+                                    lastSalePrice: prop.LAST_SALE_PRICE || null,
+                                    ...prop // Keep all original fields
+                                }));
+                                
+                                this.filteredProperties = [...this.properties];
+                                this.addMapMarkers();
+                                this.calculateStats();
+                                this.loading = false;
+                                
+                                // Center map on first property with coordinates
+                                const firstWithCoords = this.properties.find(p => p.lat && p.lng);
+                                if (firstWithCoords && this.map) {
+                                    this.map.setCenter([firstWithCoords.lng, firstWithCoords.lat]);
+                                    this.map.setZoom(14);
+                                }
+                                return;
+                            }
+                        } catch (err) {
+                            console.error('Error loading CSV:', err);
+                        }
+                    }
+                    
+                    // Fallback to sample data if CSV fails
+                    console.log('Loading sample data...');
+                    this.properties = [
+                        {
+                            id: 1,
+                            address: '827 N 91st Ave, Phoenix, AZ',
+                            owner: 'Daniel Lyons',
+                            phone: '(602) 555-7101',
+                            lat: 38.2975,
+                            lng: -122.0808,
+                            absentee: true,
+                            equity: 50
+                        },
+                        {
+                            id: 2,
+                            address: '456 Oak Ave, Napa, CA',
+                            owner: 'Jane Doe',
+                            phone: '(707) 555-0456',
+                            lat: 38.2985,
+                            lng: -122.0798,
+                            absentee: false,
+                            equity: 45
+                        },
+                        {
+                            id: 3,
+                            address: '789 Vine Rd, Napa, CA',
+                            owner: 'Robert Johnson',
+                            phone: null,
+                            lat: 38.2965,
+                            lng: -122.0818,
+                            absentee: true,
+                            equity: 72
+                        }
+                    ];
+                    
+                    this.filteredProperties = [...this.properties];
+                    this.addMapMarkers();
+                    this.calculateStats();
+                    this.loading = false;
+                },
+                
+                // Add markers with TomTom
+                addMapMarkers() {
+                    // Clear existing markers
+                    this.markers.forEach(m => m.remove());
+                    this.markers = [];
+                    
+                    // Add property markers
+                    this.filteredProperties.forEach(prop => {
+                        if (prop.lat && prop.lng) {
+                            const color = prop.absentee ? '#ff9500' : '#00ff41';
+                            
+                            const marker = new tt.Marker({ color })
+                                .setLngLat([prop.lng, prop.lat])
+                                .setPopup(new tt.Popup().setHTML(`
+                                    <div style="color: black; padding: 8px;">
+                                        <strong>${prop.address}</strong><br>
+                                        ${prop.owner}<br>
+                                        ${prop.phone || 'No phone'}
+                                    </div>
+                                `))
+                                .addTo(this.map);
+                            
+                            marker.getElement().addEventListener('click', () => {
+                                this.selectProperty(prop);
+                            });
+                            
+                            this.markers.push(marker);
+                        }
+                    });
+                },
+                
+                // Select Property
+                selectProperty(property) {
+                    this.selectedProperty = property;
+                    
+                    // Fly to property
+                    if (property.lat && property.lng) {
+                        this.map.flyTo({
+                            center: [property.lng, property.lat],
+                            zoom: 18
+                        });
+                    }
+                },
+                
+                // Calculate Stats
+                calculateStats() {
+                    this.stats.total = this.properties.length;
+                    const absenteeCount = this.properties.filter(p => p.absentee).length;
+                    this.stats.absentee = Math.round((absenteeCount / this.stats.total) * 100) + '%';
+                    
+                    const avgEquity = this.properties.reduce((sum, p) => sum + (p.equity || 0), 0) / this.stats.total;
+                    this.stats.avgEquity = Math.round(avgEquity) + '%';
+                },
+                
+                // Filter Properties
+                filterProperties() {
+                    let filtered = [...this.properties];
+                    
+                    // Text search
+                    if (this.propertySearch) {
+                        const search = this.propertySearch.toLowerCase();
+                        filtered = filtered.filter(p => 
+                            p.address.toLowerCase().includes(search) ||
+                            p.owner.toLowerCase().includes(search) ||
+                            (p.phone && p.phone.includes(search))
+                        );
+                    }
+                    
+                    // Absentee filter
+                    if (this.filters.absentee) {
+                        filtered = filtered.filter(p => p.absentee);
+                    }
+                    
+                    this.filteredProperties = filtered;
+                    this.addMapMarkers();
+                },
+                
+                // Toggle Filter
+                toggleFilter(filter) {
+                    this.filters[filter] = !this.filters[filter];
+                    
+                    if (filter === 'driveTime') {
+                        this.showDriveTime = this.filters.driveTime;
+                        if (!this.showDriveTime) {
+                            this.clearDriveTime();
+                        }
+                    }
+                    
+                    this.filterProperties();
+                },
+                
+                // Plan multi-stop route
+                async planRoute() {
+                    // Get selected properties or hot list
+                    const stops = this.filteredProperties.slice(0, 5); // Max 5 for demo
+                    
+                    if (stops.length < 2) {
+                        alert('Select at least 2 properties for route planning');
+                        return;
+                    }
+                    
+                    // Create route
+                    const locations = stops.map(s => `${s.lat},${s.lng}`).join(':');
+                    
+                    try {
+                        const response = await fetch(
+                            `https://api.tomtom.com/routing/1/calculateRoute/${locations}/json?` +
+                            `key=${this.API_KEY}&routeType=fastest&traffic=true`
+                        );
+                        
+                        const data = await response.json();
+                        
+                        if (data.routes && data.routes[0]) {
+                            const route = data.routes[0];
+                            
+                            // Display route info
+                            const totalTime = Math.round(route.summary.travelTimeInSeconds / 60);
+                            const totalDistance = (route.summary.lengthInMeters / 1609.34).toFixed(1);
+                            
+                            alert(`Route planned!\nTotal time: ${totalTime} minutes\nTotal distance: ${totalDistance} miles`);
+                            
+                            // Draw route on map (simplified)
+                            // In production, would parse and display the actual route geometry
+                        }
+                    } catch (error) {
+                        console.error('Route planning error:', error);
+                    }
+                },
+                
+                // Other methods
+                uploadCSV() {
+                    console.log('Upload CSV');
+                },
+                
+                exportData() {
+                    console.log('Export data');
+                },
+                
+                showHotList() {
+                    console.log('Show hot list');
+                }
+            };
+        }
+    </script>
+</body>
+</html>

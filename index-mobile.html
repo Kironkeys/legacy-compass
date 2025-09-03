@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Legacy Compass Mobile</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- TomTom Maps SDK -->
+    <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css">
+    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
+    
+    <style>
+        /* Force full height on mobile */
+        html, body {
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        /* Custom scrollbar for properties */
+        .property-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .property-list::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        .property-list::-webkit-scrollbar-thumb {
+            background: #ff9500;
+            border-radius: 2px;
+        }
+        
+        /* Map controls */
+        .mapboxgl-ctrl-top-right {
+            top: 10px !important;
+            right: 10px !important;
+        }
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div x-data="legacyApp()" x-init="init()" class="h-screen flex flex-col">
+        
+        <!-- Header - Fixed Height -->
+        <div class="bg-gray-900 border-b border-orange-500 px-2 py-1 flex-shrink-0">
+            <div class="flex justify-between items-center mb-1">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span class="text-orange-500 font-bold text-sm">Legacy Compass</span>
+                </div>
+                <span class="text-yellow-500 text-xs">Jeff & Anna Farm</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+                <div>
+                    <div class="text-orange-500 font-bold text-lg" x-text="stats.total">0</div>
+                    <div class="text-yellow-500 text-[9px] uppercase">Properties</div>
+                </div>
+                <div>
+                    <div class="text-yellow-500 font-bold text-lg" x-text="stats.absentee">0%</div>
+                    <div class="text-yellow-500 text-[9px] uppercase">Absentee</div>
+                </div>
+                <div>
+                    <div class="text-green-500 font-bold text-lg" x-text="stats.avgEquity">0%</div>
+                    <div class="text-yellow-500 text-[9px] uppercase">Avg Equity</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content - Flex Grow -->
+        <div class="flex-1 flex overflow-hidden">
+            
+            <!-- Map Section - 70% width -->
+            <div class="w-[70%] flex flex-col border-r border-orange-500">
+                <!-- Map Controls -->
+                <div class="bg-gray-900 p-1 flex-shrink-0">
+                    <div class="flex gap-1 mb-1">
+                        <input type="text" 
+                               class="flex-1 bg-gray-800 text-white text-xs px-2 py-1 rounded"
+                               placeholder="Search location..."
+                               x-model="mapSearch"
+                               @keyup.enter="searchLocation()">
+                        <button class="bg-orange-500 text-black px-2 py-1 rounded text-xs font-bold"
+                                @click="searchLocation()">Go</button>
+                    </div>
+                    <div class="flex gap-1">
+                        <button class="flex-1 py-1 text-[10px] rounded"
+                                :class="mapStyle === 'satellite' ? 'bg-orange-500 text-black' : 'bg-gray-800 text-orange-500'"
+                                @click="toggleMapStyle('satellite')">🛰️ Sat</button>
+                        <button class="flex-1 py-1 text-[10px] rounded"
+                                :class="mapStyle === 'street' ? 'bg-orange-500 text-black' : 'bg-gray-800 text-orange-500'"
+                                @click="toggleMapStyle('street')">🗺️ Street</button>
+                        <button class="flex-1 py-1 text-[10px] rounded"
+                                :class="showTraffic ? 'bg-orange-500 text-black' : 'bg-gray-800 text-orange-500'"
+                                @click="toggleTraffic()">🚗 Traffic</button>
+                        <button class="flex-1 py-1 text-[10px] rounded"
+                                :class="showPOI ? 'bg-orange-500 text-black' : 'bg-gray-800 text-orange-500'"
+                                @click="togglePOI()">📍 POI</button>
+                    </div>
+                </div>
+                <!-- Map Container -->
+                <div id="map" class="flex-1"></div>
+            </div>
+            
+            <!-- Properties Section - 30% width -->
+            <div class="w-[30%] flex flex-col bg-gray-900">
+                <!-- Filter Input -->
+                <div class="p-1 flex-shrink-0">
+                    <input type="text" 
+                           class="w-full bg-gray-800 text-white text-xs px-2 py-1 rounded"
+                           placeholder="Filter..."
+                           x-model="propertySearch"
+                           @input="filterProperties()">
+                </div>
+                
+                <!-- Property List -->
+                <div class="flex-1 overflow-y-auto property-list p-1">
+                    <template x-if="loading">
+                        <div class="text-center py-4 text-yellow-500 text-xs">
+                            Loading properties...
+                        </div>
+                    </template>
+                    
+                    <template x-if="!loading && filteredProperties.length === 0">
+                        <div class="text-center py-4 text-gray-500 text-xs">
+                            No properties found
+                        </div>
+                    </template>
+                    
+                    <template x-for="property in filteredProperties" :key="property.id">
+                        <div class="bg-gray-800 p-2 mb-1 rounded cursor-pointer hover:bg-gray-700 transition-colors"
+                             @click="selectProperty(property)">
+                            <div class="text-white text-[11px] font-bold truncate" x-text="property.address"></div>
+                            <div class="text-gray-400 text-[10px] truncate" x-text="property.owner"></div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="text-[9px]" :class="property.absentee ? 'text-orange-500' : 'text-gray-500'">
+                                    <span x-text="property.absentee ? '🏠 Absent' : '👤 Owner'"></span>
+                                </span>
+                                <span class="text-green-500 text-[9px] font-bold">
+                                    <span x-text="property.equity"></span>% equity
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer - Fixed Height -->
+        <div class="bg-gray-900 border-t border-orange-500 p-1 flex gap-1 flex-shrink-0">
+            <button class="flex-1 bg-gray-800 text-orange-500 py-1 px-1 rounded text-[10px] font-bold"
+                    @click="filterAbsentee()">
+                🏠 Absent
+            </button>
+            <button class="flex-1 bg-gray-800 text-orange-500 py-1 px-1 rounded text-[10px] font-bold"
+                    @click="showDriveTime = !showDriveTime">
+                ⏱️ Drive
+            </button>
+            <button class="flex-1 bg-gray-800 text-orange-500 py-1 px-1 rounded text-[10px] font-bold"
+                    @click="uploadCSV()">
+                📁 CSV
+            </button>
+            <button class="flex-1 bg-gray-800 text-orange-500 py-1 px-1 rounded text-[10px] font-bold"
+                    @click="exportData()">
+                📊 Export
+            </button>
+            <button class="flex-1 bg-red-600 text-white py-1 px-1 rounded text-[10px] font-bold"
+                    @click="showHotList()">
+                🔥 Hot <span x-text="`(${hotList.length})`"></span>
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        function legacyApp() {
+            return {
+                // TomTom API Key
+                API_KEY: 'z3Y4sz18krym2PvNXABYkbluFEN7enii',
+                
+                // App State
+                map: null,
+                properties: [],
+                filteredProperties: [],
+                selectedProperty: null,
+                hotList: [],
+                loading: true,
+                
+                // Map State
+                mapSearch: '',
+                mapStyle: 'satellite',
+                showTraffic: false,
+                showPOI: true,
+                showDriveTime: false,
+                markers: [],
+                
+                // Search
+                propertySearch: '',
+                
+                // Stats
+                stats: {
+                    total: 0,
+                    absentee: '0%',
+                    avgEquity: '0%'
+                },
+                
+                async init() {
+                    console.log('Initializing Legacy Compass Mobile...');
+                    this.initMap();
+                    await this.loadProperties();
+                },
+                
+                initMap() {
+                    this.map = tt.map({
+                        key: this.API_KEY,
+                        container: 'map',
+                        center: [-122.0808, 38.2975],
+                        zoom: 12,
+                        style: `https://api.tomtom.com/style/1/style/*?map=2/basic_street-satellite&poi=2/poi_dynamic-satellite&key=${this.API_KEY}`,
+                        renderWorldCopies: false,
+                        trackResize: false,
+                        refreshExpiredTiles: false,
+                        maxZoom: 18
+                    });
+                    
+                    this.map.addControl(new tt.NavigationControl(), 'top-right');
+                },
+                
+                toggleMapStyle(style) {
+                    this.mapStyle = style;
+                    const styleUrl = style === 'satellite' 
+                        ? `https://api.tomtom.com/style/1/style/*?map=2/basic_street-satellite&poi=2/poi_dynamic-satellite&key=${this.API_KEY}`
+                        : `https://api.tomtom.com/style/1/style/*?map=2/basic_street&poi=2/poi_dynamic&key=${this.API_KEY}`;
+                    this.map.setStyle(styleUrl);
+                },
+                
+                toggleTraffic() {
+                    this.showTraffic = !this.showTraffic;
+                    // TomTom traffic toggle implementation
+                },
+                
+                togglePOI() {
+                    this.showPOI = !this.showPOI;
+                    // TomTom POI toggle implementation
+                },
+                
+                async loadProperties() {
+                    try {
+                        // Try to load CSV
+                        const response = await fetch('/data/jeff_annaFarm.csv');
+                        if (response.ok) {
+                            const text = await response.text();
+                            const lines = text.split('\n');
+                            const headers = lines[0].split(',');
+                            
+                            this.properties = lines.slice(1)
+                                .filter(line => line.trim())
+                                .map((line, index) => {
+                                    const values = line.split(',');
+                                    const prop = {};
+                                    headers.forEach((header, i) => {
+                                        prop[header.trim()] = values[i]?.trim();
+                                    });
+                                    
+                                    return {
+                                        id: index + 1,
+                                        address: prop.PROPERTY_ADDRESS || prop.address || 'Unknown',
+                                        owner: prop.OWNER_NAME || prop.owner || 'Unknown',
+                                        phone: prop.PHONE || prop.phone || '',
+                                        lat: parseFloat(prop.LATITUDE || prop.lat) || null,
+                                        lng: parseFloat(prop.LONGITUDE || prop.lng) || null,
+                                        absentee: (prop.ABSENTEE || prop.absentee) === 'true',
+                                        equity: parseInt(prop.EQUITY_PERCENT || prop.equity) || 0,
+                                        ...prop
+                                    };
+                                });
+                            
+                            this.filteredProperties = [...this.properties];
+                            this.addMapMarkers();
+                            this.calculateStats();
+                            
+                            // Center map on first property
+                            const firstWithCoords = this.properties.find(p => p.lat && p.lng);
+                            if (firstWithCoords) {
+                                this.map.setCenter([firstWithCoords.lng, firstWithCoords.lat]);
+                                this.map.setZoom(14);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error loading properties:', err);
+                        // Load sample data as fallback
+                        this.properties = [
+                            { id: 1, address: '123 Main St', owner: 'John Doe', lat: 38.2975, lng: -122.0808, absentee: true, equity: 50 },
+                            { id: 2, address: '456 Oak Ave', owner: 'Jane Smith', lat: 38.2985, lng: -122.0798, absentee: false, equity: 45 }
+                        ];
+                        this.filteredProperties = [...this.properties];
+                    }
+                    
+                    this.loading = false;
+                },
+                
+                addMapMarkers() {
+                    // Clear existing markers
+                    this.markers.forEach(marker => marker.remove());
+                    this.markers = [];
+                    
+                    // Add new markers
+                    this.filteredProperties.forEach(prop => {
+                        if (prop.lat && prop.lng) {
+                            const marker = new tt.Marker({
+                                color: prop.absentee ? '#ff9500' : '#00ff41'
+                            })
+                            .setLngLat([prop.lng, prop.lat])
+                            .addTo(this.map);
+                            
+                            marker.getElement().addEventListener('click', () => {
+                                this.selectProperty(prop);
+                            });
+                            
+                            this.markers.push(marker);
+                        }
+                    });
+                },
+                
+                selectProperty(property) {
+                    this.selectedProperty = property;
+                    if (property.lat && property.lng) {
+                        this.map.flyTo({
+                            center: [property.lng, property.lat],
+                            zoom: 18
+                        });
+                    }
+                },
+                
+                filterProperties() {
+                    const search = this.propertySearch.toLowerCase();
+                    this.filteredProperties = this.properties.filter(p => 
+                        p.address.toLowerCase().includes(search) ||
+                        p.owner.toLowerCase().includes(search)
+                    );
+                    this.addMapMarkers();
+                },
+                
+                filterAbsentee() {
+                    this.filteredProperties = this.properties.filter(p => p.absentee);
+                    this.addMapMarkers();
+                },
+                
+                calculateStats() {
+                    this.stats.total = this.properties.length;
+                    const absenteeCount = this.properties.filter(p => p.absentee).length;
+                    this.stats.absentee = Math.round((absenteeCount / this.stats.total) * 100) + '%';
+                    
+                    const avgEquity = this.properties.reduce((sum, p) => sum + (p.equity || 0), 0) / this.stats.total;
+                    this.stats.avgEquity = Math.round(avgEquity) + '%';
+                },
+                
+                searchLocation() {
+                    console.log('Searching for:', this.mapSearch);
+                    // Implement TomTom search
+                },
+                
+                uploadCSV() {
+                    console.log('Upload CSV');
+                },
+                
+                exportData() {
+                    console.log('Export data');
+                },
+                
+                showHotList() {
+                    console.log('Show hot list');
+                }
+            };
+        }
+    </script>
+</body>
+</html>

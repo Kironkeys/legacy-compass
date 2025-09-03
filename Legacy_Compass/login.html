@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Compass | Login</title>
+    <meta name="theme-color" content="#49e0e8">
+    
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background: #0b0f19;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(73, 224, 232, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(73, 224, 232, 0.02) 0%, transparent 50%),
+                linear-gradient(135deg, #0b0f19 0%, #0d1324 50%, #0f1629 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23193549" stroke-width="0.5" opacity="0.3"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .auth-container {
+            background: rgba(13, 19, 36, 0.98);
+            border: 1px solid rgba(73, 224, 232, 0.15);
+            border-radius: 12px;
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 440px;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(20px);
+            box-shadow: 
+                0 32px 64px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(73, 224, 232, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        
+        .auth-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, 
+                rgba(73, 224, 232, 0.02) 0%, 
+                transparent 25%,
+                transparent 75%,
+                rgba(73, 224, 232, 0.01) 100%);
+            border-radius: inherit;
+            pointer-events: none;
+        }
+        
+        .logo-section {
+            text-align: center;
+            margin-bottom: 48px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .logo-dot {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            background: #49e0e8;
+            border-radius: 50%;
+            margin-right: 10px;
+            position: relative;
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 12px rgba(73, 224, 232, 0.6);
+        }
+        
+        .logo-dot::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(73, 224, 232, 0.3) 0%, transparent 70%);
+            z-index: -1;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1);
+                box-shadow: 0 0 12px rgba(73, 224, 232, 0.6);
+            }
+            50% { 
+                opacity: 0.9; 
+                transform: scale(1.1);
+                box-shadow: 0 0 20px rgba(73, 224, 232, 0.8);
+            }
+        }
+        
+        h1 {
+            color: #eaf3ff;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: inline-block;
+            text-shadow: 0 0 20px rgba(73, 224, 232, 0.3);
+            background: linear-gradient(135deg, #eaf3ff 0%, #49e0e8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .tagline {
+            color: rgba(234, 243, 255, 0.7);
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 12px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        .auth-tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 36px;
+            background: rgba(15, 22, 41, 0.8);
+            padding: 6px;
+            border-radius: 10px;
+            border: 1px solid rgba(73, 224, 232, 0.1);
+            position: relative;
+            z-index: 2;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 14px 20px;
+            background: transparent;
+            border: none;
+            color: rgba(234, 243, 255, 0.6);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            letter-spacing: 0.5px;
+        }
+        
+        .tab-button:hover:not(.active) {
+            color: rgba(234, 243, 255, 0.8);
+            background: rgba(73, 224, 232, 0.05);
+        }
+        
+        .tab-button.active {
+            background: linear-gradient(135deg, #49e0e8 0%, #5bedf4 100%);
+            color: #0b0f19;
+            box-shadow: 
+                0 0 20px rgba(73, 224, 232, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        label {
+            display: block;
+            color: rgba(234, 243, 255, 0.9);
+            font-size: 13px;
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(15, 22, 41, 0.6);
+            border: 1px solid rgba(73, 224, 232, 0.15);
+            border-radius: 8px;
+            color: #eaf3ff;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+        
+        input:hover {
+            border-color: rgba(73, 224, 232, 0.25);
+            background: rgba(15, 22, 41, 0.8);
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #49e0e8;
+            background: rgba(15, 22, 41, 0.9);
+            box-shadow: 
+                0 0 0 3px rgba(73, 224, 232, 0.1),
+                0 0 20px rgba(73, 224, 232, 0.2);
+        }
+        
+        input::placeholder {
+            color: rgba(234, 243, 255, 0.4);
+            font-weight: 400;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 18px 24px;
+            background: linear-gradient(135deg, #49e0e8 0%, #5bedf4 100%);
+            color: #0b0f19;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 12px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            position: relative;
+            z-index: 2;
+            box-shadow: 
+                0 8px 24px rgba(73, 224, 232, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #5bedf4 0%, #6bf0f7 100%);
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 36px rgba(73, 224, 232, 0.4),
+                0 0 40px rgba(73, 224, 232, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn:active:not(:disabled) {
+            transform: translateY(-1px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 4px 12px rgba(73, 224, 232, 0.2);
+        }
+        
+        .btn.secondary {
+            background: transparent;
+            border: 1px solid rgba(73, 224, 232, 0.3);
+            color: rgba(234, 243, 255, 0.9);
+            box-shadow: none;
+        }
+        
+        .btn.secondary:hover:not(:disabled) {
+            background: rgba(73, 224, 232, 0.1);
+            border-color: rgba(73, 224, 232, 0.5);
+            box-shadow: 0 0 20px rgba(73, 224, 232, 0.2);
+        }
+        
+        .error-message {
+            background: rgba(255, 59, 48, 0.15);
+            border: 1px solid rgba(255, 59, 48, 0.4);
+            color: #ff6b6b;
+            padding: 16px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(255, 59, 48, 0.1);
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .success-message {
+            background: rgba(52, 199, 89, 0.15);
+            border: 1px solid rgba(52, 199, 89, 0.4);
+            color: #5fcf65;
+            padding: 16px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(52, 199, 89, 0.1);
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .forgot-password {
+            text-align: center;
+            margin-top: 24px;
+        }
+        
+        .forgot-password a {
+            color: #49e0e8;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+        
+        .forgot-password a:hover {
+            color: #5bedf4;
+            text-shadow: 0 0 10px rgba(73, 224, 232, 0.5);
+        }
+        
+        .demo-info {
+            background: rgba(73, 224, 232, 0.08);
+            border: 1px solid rgba(73, 224, 232, 0.25);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 32px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(73, 224, 232, 0.1);
+            position: relative;
+            z-index: 2;
+        }
+        
+        .demo-info h3 {
+            color: #49e0e8;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        .demo-info p {
+            color: rgba(234, 243, 255, 0.7);
+            font-size: 13px;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        
+        .demo-credentials {
+            background: rgba(11, 15, 25, 0.7);
+            border: 1px solid rgba(73, 224, 232, 0.2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            font-size: 13px;
+            color: #49e0e8;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(234, 243, 255, 0.2);
+            border-top-color: #49e0e8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Enhanced responsive design */
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 32px 24px;
+                margin: 16px;
+            }
+            
+            h1 {
+                font-size: 28px;
+            }
+            
+            .logo-dot {
+                width: 12px;
+                height: 12px;
+            }
+        }
+    </style>
+</head>
+<body x-data="authApp" x-init="init()">
+    <div class="auth-container">
+        <!-- Logo Section -->
+        <div class="logo-section">
+            <span class="logo-dot"></span>
+            <h1>Legacy Compass</h1>
+            <div class="tagline">The Bloomberg Terminal of Real Estate</div>
+        </div>
+        
+        <!-- Tab Buttons -->
+        <div class="auth-tabs">
+            <button 
+                class="tab-button" 
+                :class="{'active': mode === 'login'}"
+                @click="mode = 'login'"
+            >
+                Sign In
+            </button>
+            <button 
+                class="tab-button" 
+                :class="{'active': mode === 'signup'}"
+                @click="mode = 'signup'"
+            >
+                Sign Up
+            </button>
+        </div>
+        
+        <!-- Error/Success Messages -->
+        <div class="error-message" :class="{'show': errorMessage}" x-text="errorMessage"></div>
+        <div class="success-message" :class="{'show': successMessage}" x-text="successMessage"></div>
+        
+        <!-- Login Form -->
+        <form @submit.prevent="handleSubmit()" x-show="mode === 'login'">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    x-model="email"
+                    placeholder="you@example.com"
+                    required
+                    autocomplete="email"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    x-model="password"
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+            
+            <button type="submit" class="btn" :disabled="isLoading">
+                <span x-show="!isLoading">Sign In</span>
+                <span x-show="isLoading">
+                    Signing in...
+                    <span class="loading-spinner"></span>
+                </span>
+            </button>
+        </form>
+        
+        <!-- Signup Form -->
+        <form @submit.prevent="handleSubmit()" x-show="mode === 'signup'">
+            <div class="form-group">
+                <label for="signup-name">Full Name</label>
+                <input 
+                    type="text" 
+                    id="signup-name" 
+                    x-model="fullName"
+                    placeholder="John Doe"
+                    autocomplete="name"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="signup-email">Email</label>
+                <input 
+                    type="email" 
+                    id="signup-email" 
+                    x-model="email"
+                    placeholder="you@example.com"
+                    required
+                    autocomplete="email"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="signup-password">Password</label>
+                <input 
+                    type="password" 
+                    id="signup-password" 
+                    x-model="password"
+                    placeholder="Create a strong password"
+                    required
+                    autocomplete="new-password"
+                    minlength="6"
+                >
+            </div>
+            
+            <button type="submit" class="btn" :disabled="isLoading">
+                <span x-show="!isLoading">Create Account</span>
+                <span x-show="isLoading">
+                    Creating account...
+                    <span class="loading-spinner"></span>
+                </span>
+            </button>
+        </form>
+        
+        <!-- Forgot Password Link -->
+        <div class="forgot-password" x-show="mode === 'login'">
+            <a href="#" @click.prevent="handleForgotPassword()">Forgot your password?</a>
+        </div>
+        
+        <!-- Demo Info -->
+        <div class="demo-info">
+            <h3>🚀 Try Demo Account</h3>
+            <p>Experience Legacy Compass with our demo account:</p>
+            <div class="demo-credentials">
+                Email: demo@legacycompass.com<br>
+                Password: demo123
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load auth scripts -->
+    <script src="/js/supabase-client.js"></script>
+    <script src="/js/auth.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('authApp', () => ({
+                mode: 'login',
+                email: '',
+                password: '',
+                fullName: '',
+                isLoading: false,
+                errorMessage: '',
+                successMessage: '',
+                
+                async init() {
+                    // Check if already authenticated
+                    setTimeout(async () => {
+                        if (window.supabase) {
+                            const { data: { user } } = await window.supabase.auth.getUser();
+                            if (user) {
+                                // Already logged in, redirect to main app
+                                window.location.href = '/';
+                            }
+                        }
+                    }, 1000);
+                },
+                
+                async handleSubmit() {
+                    this.errorMessage = '';
+                    this.successMessage = '';
+                    this.isLoading = true;
+                    
+                    try {
+                        if (this.mode === 'login') {
+                            await this.signIn();
+                        } else {
+                            await this.signUp();
+                        }
+                    } catch (error) {
+                        this.errorMessage = error.message;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+                
+                async signIn() {
+                    // Demo account check
+                    if (this.email === 'demo@legacycompass.com' && this.password === 'demo123') {
+                        // Create a demo session in localStorage
+                        localStorage.setItem('demo_mode', 'true');
+                        localStorage.setItem('demo_user', JSON.stringify({
+                            email: 'demo@legacycompass.com',
+                            name: 'Demo User'
+                        }));
+                        
+                        this.successMessage = 'Demo mode activated! Redirecting...';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1000);
+                        return;
+                    }
+                    
+                    // Regular sign in
+                    const result = await window.LegacyAuth.signIn(this.email, this.password);
+                    
+                    if (result.user) {
+                        this.successMessage = 'Success! Redirecting...';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1000);
+                    }
+                },
+                
+                async signUp() {
+                    const result = await window.LegacyAuth.signUp(
+                        this.email, 
+                        this.password, 
+                        this.fullName
+                    );
+                    
+                    if (result.user) {
+                        this.successMessage = 'Account created! Check your email to confirm, then sign in.';
+                        this.mode = 'login';
+                    }
+                },
+                
+                async handleForgotPassword() {
+                    if (!this.email) {
+                        this.errorMessage = 'Please enter your email address first';
+                        return;
+                    }
+                    
+                    try {
+                        await window.LegacyAuth.resetPassword(this.email);
+                        this.successMessage = 'Password reset link sent to your email!';
+                    } catch (error) {
+                        this.errorMessage = error.message;
+                    }
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

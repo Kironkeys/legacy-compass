@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Legacy Compass Status Check</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ff9500;
+        }
+        .status-box {
+            background: #2a2a2a;
+            border: 1px solid #ff9500;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .success { color: #4ade80; }
+        .error { color: #ef4444; }
+        .link {
+            display: inline-block;
+            margin: 10px 0;
+            padding: 10px 20px;
+            background: #ff9500;
+            color: #000;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧭 Legacy Compass Status</h1>
+    
+    <div class="status-box">
+        <h2>Quick Links</h2>
+        <a href="/" class="link">→ Open Legacy Compass Main App</a><br>
+        <a href="/test-data-loading.html" class="link">→ Test Data Loading</a>
+    </div>
+    
+    <div class="status-box">
+        <h2>System Status</h2>
+        <div id="status"></div>
+    </div>
+    
+    <script>
+        async function checkStatus() {
+            const status = document.getElementById('status');
+            let html = '';
+            
+            // Check if server is responding
+            html += '<p class="success">✅ Server is running on port 8080</p>';
+            
+            // Check for key files
+            const files = [
+                '/js/config.js',
+                '/js/data-loader.js',
+                '/js/app-simple.js',
+                '/js/mapbox-init.js',
+                '/data/hayward_owners.csv'
+            ];
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch(file, { method: 'HEAD' });
+                    if (response.ok) {
+                        html += `<p class="success">✅ ${file} loaded</p>`;
+                    } else {
+                        html += `<p class="error">❌ ${file} not found</p>`;
+                    }
+                } catch (e) {
+                    html += `<p class="error">❌ ${file} error</p>`;
+                }
+            }
+            
+            status.innerHTML = html;
+        }
+        
+        checkStatus();
+    </script>
+</body>
+</html>

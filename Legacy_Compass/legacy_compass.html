@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FarmPro — Command Center + GPS</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#0b0f19; --panel:#0d1324; --panel2:#0a1120; --text:#eaf3ff; --muted:#9fb4df;
+      --border:#162036; --neon:#49e0e8; --neon2:#6ea8ff; --green:#22c55e; --red:#ef4444; --accent:#60a5fa;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 70% 10%,#0e1423 0%,#07080b 60%);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .app{display:grid;grid-template-columns:1.2fr 1fr;height:100vh;overflow:hidden}
+    @media(max-width:1024px){.app{grid-template-columns:1fr;grid-template-rows:52vh 48vh}}
+    header{
+      position:sticky;top:0;z-index:10;backdrop-filter:saturate(160%) blur(8px);
+      background:linear-gradient(180deg,rgba(10,14,23,.9),rgba(10,14,23,.6));
+      border-bottom:1px solid var(--border); padding:10px 14px; display:flex; gap:10px; align-items:center;
+    }
+    h1{font-size:16px;margin:0 8px 0 0;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+    h1 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--neon),var(--neon2));box-shadow:0 0 10px var(--neon)}
+    input,select,button{border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:8px 10px;border-radius:10px;outline:none}
+    input::placeholder{color:var(--muted)}
+    button{cursor:pointer}
+    button.primary{background:linear-gradient(135deg,var(--neon),var(--neon2));border:none;color:#03141b;font-weight:700}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.03);border:1px solid var(--border);color:var(--muted);font-size:12px}
+    .statbar{display:flex;gap:10px;margin-left:auto}
+    .stat{background:rgba(255,255,255,.03);border:1px solid var(--border);padding:6px 10px;border-radius:10px;color:var(--muted);font-size:12px}
+    #map{width:100%;height:100vh}
+    .right{border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,rgba(9,12,20,.8),rgba(7,8,11,.9))}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .list{overflow:auto;padding:10px;display:grid;gap:10px}
+    .card{background:rgba(10,16,28,.6);border:1px solid var(--border);border-radius:14px;padding:12px;display:grid;gap:8px;transition:transform .12s ease, box-shadow .12s ease}
+    .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.25)}
+    .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .address{font-weight:800;letter-spacing:.2px}
+    .owner{color:var(--muted);font-size:12px}
+    .badges{display:flex;gap:6px;flex-wrap:wrap}
+    .badge{padding:4px 6px;border-radius:999px;font-size:11px;border:1px solid var(--border);background:rgba(255,255,255,.03)}
+    .badge.green{color:var(--green);border-color:#0b8b6e}
+    .badge.red{color:#ff6b6b;border-color:#7a2323}
+    .actions{display:flex;gap:6px}
+    .actions button{font-size:12px;padding:6px 8px}
+    .detailPanel{position:absolute; inset:0 0 0 auto; width:0; max-width:720px; background:rgba(8,12,22,.96);
+      border-left:1px solid var(--border); overflow:auto; transition:width .18s ease; box-shadow: -24px 0 64px rgba(0,0,0,.35);}
+    .detailPanel.open{width:min(100%,720px)}
+    .detailHeader{position:sticky;top:0;background:linear-gradient(180deg,rgba(13,19,36,.95),rgba(13,19,36,.75));backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:12px;display:flex;gap:8px;align-items:center}
+    .detailGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+    @media(max-width:720px){.detailGrid{grid-template-columns:1fr}}
+    .tile{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:10px}
+    .tile h3{margin:0 0 8px 0;font-size:12px;color:var(--muted);letter-spacing:.2px}
+    .miniMap{height:160px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+    .timeline{display:grid;gap:6px}
+    .note{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:13px}
+    .footerBar{border-top:1px solid var(--border);padding:10px;display:flex;gap:8px;position:sticky;bottom:0;background:rgba(9,12,20,.95);backdrop-filter:blur(6px)}
+    .wave{height:24px;display:none;align-items:center;gap:3px}
+    .dotw{width:6px;height:6px;border-radius:50%;background:var(--neon);opacity:.45;animation:wave 1s infinite}
+    .dotw:nth-child(2){animation-delay:.15s}.dotw:nth-child(3){animation-delay:.3s}.dotw:nth-child(4){animation-delay:.45s}
+    @keyframes wave{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}
+    /* neon polygon */
+    .leaflet-overlay-pane path.neon {
+      filter: drop-shadow(0 0 8px rgba(73,224,232,.9));
+      stroke: rgba(73,224,232,0.95); stroke-width: 3; fill: rgba(73,224,232,0.12);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="left">
+      <header>
+        <h1><span class="dot"></span> FarmPro <span class="chip">command center</span></h1>
+        <input id="q" placeholder="Search address or owner…" />
+        <label class="chip"><input type="checkbox" id="absenteeOnly" style="accent-color:#22c55e;margin-right:6px">Absentee only</label>
+        <label class="chip">Equity ≥ <span id="eqLabel">40</span>% <input id="eq" type="range" min="0" max="100" value="40" style="vertical-align:middle"></label>
+        <div class="statbar">
+          <div class="stat" id="statCount">0 homes</div>
+          <div class="stat" id="statAbs">0% absentee</div>
+        </div>
+      </header>
+      <div id="map"></div>
+    </div>
+    <div class="right" style="position:relative">
+      <div class="toolbar" style="padding:10px;border-bottom:1px solid var(--border)">
+        <button id="btnGPS" class="primary">📍 Add from GPS</button>
+        <button id="btnVoice" class="chip">🎤 Voice note</button>
+        <button id="btnExport" class="chip">Export CSV</button>
+        <div class="wave" id="voiceWave"><div class="dotw"></div><div class="dotw"></div><div class="dotw"></div><div class="dotw"></div></div>
+      </div>
+      <div class="list" id="list"></div>
+
+      <!-- Slide-over Command Center -->
+      <div class="detailPanel" id="detail">
+        <div class="detailHeader">
+          <div style="flex:1">
+            <div class="address" id="d_addr">—</div>
+            <div class="owner" id="d_owner">—</div>
+            <div class="badges" id="d_badges" style="margin-top:6px"></div>
+          </div>
+          <button id="btnBack" class="chip">← Back to list</button>
+        </div>
+        <div class="detailGrid">
+          <div class="tile">
+            <h3>Mini Map</h3>
+            <div id="miniMap" class="miniMap"></div>
+          </div>
+          <div class="tile">
+            <h3>Quick Actions</h3>
+            <div class="actions">
+              <button class="primary">📞 Call</button>
+              <button class="chip">💬 Text</button>
+              <button class="chip">✉️ Email</button>
+              <button class="chip">🚗 Route</button>
+              <button class="chip">📬 Mailer</button>
+            </div>
+          </div>
+          <div class="tile">
+            <h3>Owner Info</h3>
+            <div id="d_ownerBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Property Info</h3>
+            <div id="d_propBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Market Insight</h3>
+            <div id="d_marketBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Equity / Mortgage</h3>
+            <div id="d_equityBlock"></div>
+          </div>
+          <div class="tile" style="grid-column:1/-1">
+            <h3>Notes & Activity</h3>
+            <div class="timeline" id="d_timeline"></div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <input id="d_noteInput" placeholder="Type a note…" style="flex:1" />
+              <button id="d_saveNote" class="primary">Save</button>
+              <button id="d_voiceNote" class="chip">🎤 Voice</button>
+            </div>
+          </div>
+        </div>
+        <div class="footerBar">
+          <button class="chip" id="d_hot">★ Add to Hot List</button>
+          <button class="chip" id="d_follow">⏰ Follow-up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/esri-leaflet@3.0.11/dist/esri-leaflet.js"></script>
+  <script>
+    // ---- Mock data ----
+    const NAMES = ["TERESA MARTINEZ","DANIEL LYONS","CHRISTA VAN HOFWEGEN","SHAUKAT BADANI","SANTIAGO CASTANEDA","MICHAEL SANDLER","CAMILLE CANLAS","CARLO JUNIO","HADIDJA UMULISA"];
+    const BASE = { lat: 33.4704, lng: -112.2610 };
+    const rnd = (a,b)=>Math.random()*(b-a)+a;
+    const PROPS = Array.from({length:120}, (_,i)=>{
+      const lat = BASE.lat + rnd(-0.02,0.02);
+      const lng = BASE.lng + rnd(-0.02,0.02);
+      const num = Math.floor(rnd(100,999));
+      const st  = ["N 86TH LN","N 91ST AVE","W GARFIELD ST","N 93RD DR","N LIZANNE WAY","W BADEN ST"][i%6];
+      const eq  = Math.round(rnd(10,95));
+      const ownerOcc = i%3!==0; // ~66% owner occupied
+      return {
+        id: "p"+(i+1),
+        lat,lng,
+        address: `${num} ${st}`,
+        owner: NAMES[i%NAMES.length],
+        ownerOccupied: ownerOcc,
+        equity: eq,
+        status: ["New","Follow-up","Hot","Not Interested"][i%4],
+        ownerPhone: "(602) 555-7"+String(100+i).slice(-3),
+        ownerEmail: "contact"+(i%50)+"@example.com",
+        yearBuilt: 1990 + (i%25), beds: 3+(i%2), baths: 2+(i%2), sqft: 1200 + (i%10)*120, lot: 5000 + (i%12)*150,
+        lastSale: (2000 + (i%24))+"-0"+(1+(i%9))+"-15", salePrice: 150000 + (i%20)*12000, lender: ["Chase","Wells Fargo","BofA","US Bank"][i%4],
+      };
+    });
+
+    // ---- Map (satellite) ----
+    const map = L.map('map', { zoomControl: false, attributionControl:false }).setView([BASE.lat, BASE.lng], 15);
+    L.esri.basemapLayer('Imagery').addTo(map);
+    L.control.zoom({position:'bottomright'}).addTo(map);
+
+    const markers = new Map();
+    let glowLayer = null;
+    let selected = null;
+
+    // ---- UI refs ----
+    const qEl = document.getElementById('q');
+    const eqEl = document.getElementById('eq');
+    const eqLabel = document.getElementById('eqLabel');
+    const absOnlyEl = document.getElementById('absenteeOnly');
+    const statCount = document.getElementById('statCount');
+    const statAbs = document.getElementById('statAbs');
+    const listEl = document.getElementById('list');
+    const detail = document.getElementById('detail');
+    const d_addr = document.getElementById('d_addr');
+    const d_owner = document.getElementById('d_owner');
+    const d_badges = document.getElementById('d_badges');
+    const d_ownerBlock = document.getElementById('d_ownerBlock');
+    const d_propBlock = document.getElementById('d_propBlock');
+    const d_marketBlock = document.getElementById('d_marketBlock');
+    const d_equityBlock = document.getElementById('d_equityBlock');
+    const d_timeline = document.getElementById('d_timeline');
+    const d_noteInput = document.getElementById('d_noteInput');
+    const d_saveNote = document.getElementById('d_saveNote');
+    const d_voiceNote = document.getElementById('d_voiceNote');
+    const btnBack = document.getElementById('btnBack');
+    const btnGPS = document.getElementById('btnGPS');
+    const btnVoice = document.getElementById('btnVoice');
+    const voiceWave = document.getElementById('voiceWave');
+    const btnExport = document.getElementById('btnExport');
+
+    eqEl.addEventListener('input', ()=>{ eqLabel.textContent = eqEl.value; render(); });
+    qEl.addEventListener('input', render);
+    absOnlyEl.addEventListener('change', render);
+
+    // ---- Persistence for notes ----
+    const LS_NOTES_KEY = 'farmpro_notes_v2';
+    const notesDB = JSON.parse(localStorage.getItem(LS_NOTES_KEY) || '{}');
+    function saveNotes(){ localStorage.setItem(LS_NOTES_KEY, JSON.stringify(notesDB)); }
+
+    // ---- Filter + render ----
+    function getFiltered(){
+      const q = qEl.value.trim().toLowerCase();
+      const eqMin = parseInt(eqEl.value,10);
+      const absenteeOnly = absOnlyEl.checked;
+      return PROPS.filter(p => {
+        if (q && !(p.address.toLowerCase().includes(q) || p.owner.toLowerCase().includes(q))) return false;
+        if (p.equity < eqMin) return false;
+        if (absenteeOnly && p.ownerOccupied) return false;
+        return true;
+      });
+    }
+
+    function render(){
+      const rows = getFiltered();
+      const total = rows.length;
+      const abs = rows.filter(p=>!p.ownerOccupied).length;
+      statCount.textContent = `${total} homes`;
+      statAbs.textContent = `${total ? Math.round((abs/total)*100) : 0}% absentee`;
+
+      // list
+      listEl.innerHTML = '';
+      rows.forEach(p => listEl.appendChild(cardFor(p)));
+
+      // markers
+      const seen = new Set();
+      rows.forEach(p => {
+        seen.add(p.id);
+        if (!markers.has(p.id)){
+          const color = p.ownerOccupied ? '#22c55e' : '#ef4444';
+          const icon = L.divIcon({className:'', html:`<div style="width:14px;height:14px;border-radius:50%;background:${color};box-shadow:0 0 0 2px #09111b,0 0 12px ${color}66"></div>`});
+          const m = L.marker([p.lat,p.lng], {icon}).addTo(map).on('click',()=> openDetail(p));
+          markers.set(p.id, m);
+        } else {
+          const m = markers.get(p.id);
+          m.setLatLng([p.lat,p.lng]);
+        }
+      });
+      [...markers.keys()].forEach(id=>{ if(!seen.has(id)){ const m=markers.get(id); map.removeLayer(m); markers.delete(id);} });
+    }
+
+    function cardFor(p){
+      const el = document.createElement('div');
+      el.className='card';
+      el.innerHTML = `
+        <div class="row">
+          <div>
+            <div class="address">${p.address}</div>
+            <div class="owner">${p.owner}</div>
+          </div>
+          <div class="badges">
+            <span class="badge ${p.ownerOccupied?'green':'red'}">${p.ownerOccupied?'Owner':'Absentee'}</span>
+            <span class="badge">Equity ${p.equity}%</span>
+            <span class="badge">${p.status}</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button data-action="focus">Focus</button>
+          <button data-action="details">Details</button>
+          <button data-action="voice">🎤 Voice</button>
+        </div>
+      `;
+      el.querySelector('[data-action="focus"]').onclick = () => {
+        map.setView([p.lat,p.lng], 18, {animate:true});
+        neonFootprint(p);
+      };
+      el.querySelector('[data-action="details"]').onclick = () => openDetail(p);
+      el.querySelector('[data-action="voice"]').onclick = () => startVoice(p.id, (text)=>{
+        notesDB[p.id] = (notesDB[p.id]||[]).concat([{t:Date.now(), text, type:'voice'}]);
+        saveNotes();
+        if (selected && selected.id===p.id) refreshTimeline(p.id);
+      });
+      return el;
+    }
+
+    function neonFootprint(p){
+      if (glowLayer){ map.removeLayer(glowLayer); glowLayer = null; }
+      const size = 0.00035;
+      const poly = [
+        [p.lat-size, p.lng-size],
+        [p.lat-size, p.lng+size],
+        [p.lat+size, p.lng+size],
+        [p.lat+size, p.lng-size]
+      ];
+      glowLayer = L.polygon(poly, {className:'neon'}).addTo(map);
+    }
+
+    // ---- Detail / Command Center ----
+    let mini = null, miniGlow = null;
+    function openDetail(p){
+      selected = p;
+      detail.classList.add('open');
+      d_addr.textContent = p.address;
+      d_owner.textContent = p.owner;
+      d_badges.innerHTML = `
+        <span class="badge ${p.ownerOccupied?'green':'red'}">${p.ownerOccupied?'Owner':'Absentee'}</span>
+        <span class="badge">Equity ${p.equity}%</span>
+        <span class="badge">${p.status}</span>
+      `;
+      d_ownerBlock.innerHTML = `
+        <div><strong>Phone:</strong> ${p.ownerPhone} <span class="badge green">verified</span></div>
+        <div><strong>Email:</strong> ${p.ownerEmail} <span class="badge green">valid</span></div>
+        <div><strong>Mailing:</strong> 123 Owner St, Phoenix, AZ</div>
+      `;
+      d_propBlock.innerHTML = `
+        <div>${p.beds} bd • ${p.baths} ba • ${p.sqft} sqft</div>
+        <div>Lot: ${p.lot} sqft • Built ${p.yearBuilt}</div>
+      `;
+      d_marketBlock.innerHTML = `
+        <div>Last sale: ${p.lastSale} · $${p.salePrice.toLocaleString()}</div>
+        <div>Area turnover (est): ${(10 + (p.id.charCodeAt(1)%5))}%</div>
+      `;
+      d_equityBlock.innerHTML = `
+        <div>Equity: ${p.equity}%</div>
+        <div>Lender: ${p.lender}</div>
+        <div>Loan date: ${p.lastSale}</div>
+      `;
+      refreshTimeline(p.id);
+
+      // mini map
+      if (mini){ mini.remove(); mini=null; }
+      const mm = L.map('miniMap', { attributionControl:false, zoomControl:false });
+      L.esri.basemapLayer('Imagery').addTo(mm);
+      mm.setView([p.lat,p.lng], 19);
+      const micon = L.divIcon({className:'', html:`<div style="width:12px;height:12px;border-radius:50%;background:${p.ownerOccupied?'#22c55e':'#ef4444'};box-shadow:0 0 0 2px #09111b,0 0 12px rgba(96,165,250,.6)"></div>`});
+      L.marker([p.lat,p.lng], {icon:micon}).addTo(mm);
+      const size = 0.00018;
+      const poly = [
+        [p.lat-size, p.lng-size],
+        [p.lat-size, p.lng+size],
+        [p.lat+size, p.lng+size],
+        [p.lat+size, p.lng-size]
+      ];
+      L.polygon(poly, {className:'neon'}).addTo(mm);
+      mini = mm;
+
+      // map highlight + center
+      map.setView([p.lat,p.lng], 18, {animate:true});
+      neonFootprint(p);
+    }
+    document.getElementById('btnBack').onclick = ()=> detail.classList.remove('open');
+
+    function refreshTimeline(pid){
+      const arr = (notesDB[pid]||[]).slice().reverse();
+      d_timeline.innerHTML = arr.map(n => {
+        const badge = n.type==='voice' ? '🎤' : '📝';
+        return `<div class="note">${badge} ${new Date(n.t).toLocaleString()} — ${escapeHtml(n.text)}</div>`;
+      }).join('') || '<div class="note" style="color:var(--muted)">No activity yet.</div>';
+    }
+
+    d_saveNote.onclick = ()=>{
+      if (!selected) return;
+      const text = d_noteInput.value.trim(); if(!text) return;
+      notesDB[selected.id] = (notesDB[selected.id]||[]).concat([{t:Date.now(), text, type:'note'}]);
+      saveNotes(); d_noteInput.value=''; refreshTimeline(selected.id);
+    };
+    d_voiceNote.onclick = ()=>{
+      if (!selected) return;
+      startVoice(selected.id, (text)=>{
+        notesDB[selected.id] = (notesDB[selected.id]||[]).concat([{t:Date.now(), text, type:'voice'}]);
+        saveNotes(); refreshTimeline(selected.id);
+      });
+    };
+
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) }
+
+    // ---- Voice helper ----
+    function startVoice(pid, onDone){
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition){
+        const text = prompt("Voice not available. Type your note:");
+        if (text) onDone(text);
+        return;
+      }
+      const rec = new SpeechRecognition();
+      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false;
+      let finalText = '';
+      voiceWave.style.display='flex';
+      rec.onresult = (e)=>{ finalText = Array.from(e.results).map(r=>r[0].transcript).join(' '); };
+      rec.onerror = ()=>{ voiceWave.style.display='none'; alert('Voice error.'); };
+      rec.onend = ()=>{ voiceWave.style.display='none'; if(finalText.trim()) onDone(finalText.trim()); };
+      rec.start();
+    }
+
+    // ---- GPS Add ----
+    btnGPS.onclick = ()=>{
+      if (!navigator.geolocation){ alert('Geolocation not supported.'); return; }
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        const {latitude, longitude, accuracy} = pos.coords;
+        const near = nearestLead(latitude, longitude, 25); // meters
+        if (near){
+          openDetail(near);
+          // Auto-insert GPS note stub
+          notesDB[near.id] = (notesDB[near.id]||[]).concat([{t:Date.now(), text:`Arrived near (${accuracy|0}m)`, type:'visit'}]);
+          saveNotes(); refreshTimeline(near.id);
+        } else {
+          const p = createLeadAt(latitude, longitude);
+          openDetail(p);
+          notesDB[p.id] = [{t:Date.now(), text:`Created by GPS (${accuracy|0}m)`, type:'visit'}];
+          saveNotes(); refreshTimeline(p.id);
+          render(); // add to list + map
+        }
+      }, (err)=>{
+        alert('Location error: '+err.message);
+      }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+    };
+
+    function toRad(v){return v*Math.PI/180}
+    function haversine(lat1,lon1,lat2,lon2){
+      const R=6371000; const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+      const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(a));
+    }
+    function nearestLead(lat,lng,withinMeters){
+      let best=null, bestD=Infinity;
+      PROPS.forEach(p=>{
+        const d=haversine(lat,lng,p.lat,p.lng);
+        if(d<bestD){bestD=d; best=p;}
+      });
+      return bestD<=withinMeters?best:null;
+    }
+    function createLeadAt(lat,lng){
+      const id = 'g'+(Date.now());
+      const p = {
+        id, lat, lng,
+        address: `New lead ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        owner: '—', ownerOccupied:false, equity: 40, status:'New',
+        ownerPhone:'', ownerEmail:'', yearBuilt:'—', beds:'—', baths:'—', sqft:'—', lot:'—',
+        lastSale:'—', salePrice:'—', lender:'—'
+      };
+      PROPS.push(p);
+      const color = p.ownerOccupied ? '#22c55e' : '#ef4444';
+      const icon = L.divIcon({className:'', html:`<div style="width:14px;height:14px;border-radius:50%;background:${color};box-shadow:0 0 0 2px #09111b,0 0 12px ${color}66"></div>`});
+      const m = L.marker([p.lat,p.lng], {icon}).addTo(map).on('click',()=> openDetail(p));
+      markers.set(p.id, m);
+      return p;
+    }
+
+    // ---- Top voice button (snaps to nearest or creates) ----
+    btnVoice.onclick = ()=>{
+      if (!navigator.geolocation){ alert('Geolocation needed for snap. Allow location and try again.'); return; }
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        const {latitude, longitude} = pos.coords;
+        const near = nearestLead(latitude, longitude, 25);
+        const target = near || createLeadAt(latitude, longitude);
+        openDetail(target);
+        startVoice(target.id, (text)=>{
+          notesDB[target.id] = (notesDB[target.id]||[]).concat([{t:Date.now(), text, type:'voice'}]);
+          saveNotes(); refreshTimeline(target.id);
+          render();
+        });
+      }, (err)=> alert('Location error: '+err.message), { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+    };
+
+    // ---- Export CSV ----
+    btnExport.onclick = ()=>{
+      const rows = PROPS.map(p => {
+        const latest = (notesDB[p.id]||[]).slice(-1)[0];
+        return {
+          id: p.id, address: p.address, owner: p.owner,
+          owner_occupied: p.ownerOccupied ? 'Y':'N',
+          equity: p.equity, status: p.status,
+          phone: p.ownerPhone, email: p.ownerEmail,
+          lat: p.lat, lng: p.lng,
+          latest_note: latest ? new Date(latest.t).toISOString()+" "+latest.text : ''
+        };
+      });
+      const csv = toCSV(rows);
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'farmpro_export.csv';
+      a.click();
+    };
+    function toCSV(arr){
+      if(!arr.length) return '';
+      const cols = Object.keys(arr[0]);
+      const esc = v => ('"'+String(v).replace(/"/g,'""')+'"');
+      const lines = [cols.join(',')].concat(arr.map(o => cols.map(k => esc(o[k]??'')).join(',')));
+      return lines.join('\n');
+    }
+
+    // init
+    render();
+  </script>
+</body>
+</html>

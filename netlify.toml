@@ -1,0 +1,39 @@
+# Netlify Configuration for Legacy Compass
+
+[build]
+  publish = "."
+  command = ""
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://your-ghost-backend.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/jeff"
+  to = "/index.html"
+  status = 200
+  force = true
+  [redirects.headers]
+    X-User-Profile = "jeff"
+
+[[redirects]]
+  from = "/anna"
+  to = "/index.html"
+  status = 200
+  force = true
+  [redirects.headers]
+    X-User-Profile = "anna"
+
+[[redirects]]
+  from = "/les"
+  to = "/index.html"
+  status = 200
+  force = true
+  [redirects.headers]
+    X-User-Profile = "les"
+
+[build.environment]
+  VITE_SUPABASE_URL = "https://kfomddpbpsaplyucodli.supabase.co"
+  VITE_MAPBOX_TOKEN = "pk.eyJ1IjoibGVnYWN5Y29tcGFzcyIsImEiOiJjbWV5MTNkMDAwdGR2Mm1vZTdtNmo4Nm5mIn0.wnWv7lPl2HNZNI8hmUvb1A"

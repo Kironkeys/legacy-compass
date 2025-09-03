@@ -1,0 +1,29 @@
+# Legacy Compass robots.txt
+# Controls search engine crawling
+
+# Allow all crawlers to index the landing page
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /assets/
+Allow: /css/
+Allow: /js/
+
+# Block crawlers from tenant-specific data
+Disallow: /api/
+Disallow: /data/
+Disallow: /*.json
+Disallow: /jeff/
+Disallow: /anna/
+Disallow: /les/
+
+# Block sensitive endpoints
+Disallow: /admin
+Disallow: /config
+Disallow: /.env
+
+# Sitemap location (when we add one)
+# Sitemap: https://legacy-compass.com/sitemap.xml
+
+# Crawl delay (be nice to our server)
+Crawl-delay: 1

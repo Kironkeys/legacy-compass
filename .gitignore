@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*.bak
+*.bak2
+*-backup.html
+*-old.html
+
+# Test files
+test-*.html
+demo.html
+
+# Build directories
+dist/
+build/
+
+# Netlify
+.netlify/state.json
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# MCP
+.mcp.json
+
+# Claude
+.claude/
+
+# Goose
+.goose/

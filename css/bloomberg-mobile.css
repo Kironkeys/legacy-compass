@@ -1,0 +1,75 @@
+/* Bloomberg Terminal Mobile-First CSS - Tailwind Override */
+
+/* Keep exact Bloomberg theme colors and effects */
+:root {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #111111;
+    --bg-panel: #181818;
+    --text-primary: #ffffff;
+    --text-secondary: #ffb700;
+    --text-muted: #808080;
+    --accent-primary: #ff9500;
+    --accent-amber: #ffb700;
+    --accent-gold: #ffd700;
+    --accent-green: #00ff41;
+    --accent-red: #ff3333;
+    --accent-purple: #9333ea;
+    --border-color: #1a1a1a;
+    --border-light: #2a2a2a;
+    --shadow-glow: 0 0 20px rgba(255,149,0,0.3);
+}
+
+/* Base styling */
+body {
+    background: radial-gradient(1200px 800px at 70% 10%, #1a0f00 0%, #000000 60%);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Bloomberg Terminal specific components - keep existing styles */
+.header-bar, .logo, .stats-bar, .stat, .property-card, .badge, .btn {
+    /* Inherit all existing Bloomberg styling from styles.css */
+}
+
+/* Mobile-first touch improvements */
+@media (max-width: 767px) {
+    /* Larger touch targets for mobile */
+    .btn, .action-btn, input, textarea, select {
+        min-height: 44px;
+        font-size: 16px;
+    }
+    
+    /* Better spacing on mobile */
+    .property-card {
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: 800;
+    }
+    
+    .address {
+        font-size: 18px;
+        font-weight: 700;
+    }
+}
+
+/* iOS Safari fixes */
+@supports (-webkit-touch-callout: none) {
+    body {
+        -webkit-text-size-adjust: 100%;
+        -webkit-tap-highlight-color: rgba(255, 149, 0, 0.2);
+        -webkit-touch-callout: none;
+    }
+    
+    /* PWA safe areas */
+    .app-container {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}

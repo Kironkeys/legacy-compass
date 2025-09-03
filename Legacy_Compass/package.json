@@ -1,0 +1,39 @@
+{
+  "name": "legacy-compass",
+  "version": "1.0.0",
+  "description": "The Bloomberg Terminal of Real Estate - AI-powered farming platform",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve . -l 3000",
+    "build": "echo 'No build needed - static files'",
+    "deploy": "vercel --prod",
+    "test": "echo 'Tests coming soon'"
+  },
+  "keywords": [
+    "real-estate",
+    "crm",
+    "farming",
+    "proptech",
+    "pwa",
+    "ai"
+  ],
+  "author": "Kiron for Les's Brokerage",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "mapbox-gl": "^3.5.0",
+    "alpinejs": "^3.13.0"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0",
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "private"
+  },
+  "private": true
+}

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Compass - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div x-data="authApp()" x-init="init()" class="w-full max-w-md">
+        <!-- Logo/Header -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-2 mb-2">
+                <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+                <h1 class="text-3xl font-bold text-orange-500">Legacy Compass</h1>
+            </div>
+            <p class="text-gray-400">The Bloomberg Terminal of Real Estate</p>
+        </div>
+
+        <!-- Auth Form -->
+        <div class="bg-gray-800 rounded-lg p-6 shadow-xl border border-orange-500/20">
+            <!-- Tab Switcher -->
+            <div class="flex mb-6 bg-gray-900 rounded-lg p-1">
+                <button @click="mode = 'login'" 
+                        :class="mode === 'login' ? 'bg-orange-500 text-black' : 'text-gray-400'"
+                        class="flex-1 py-2 px-4 rounded-md font-semibold transition-colors">
+                    Sign In
+                </button>
+                <button @click="mode = 'signup'" 
+                        :class="mode === 'signup' ? 'bg-orange-500 text-black' : 'text-gray-400'"
+                        class="flex-1 py-2 px-4 rounded-md font-semibold transition-colors">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- Error Message -->
+            <div x-show="error" x-transition 
+                 class="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-md text-red-300 text-sm">
+                <span x-text="error"></span>
+            </div>
+
+            <!-- Success Message -->
+            <div x-show="success" x-transition 
+                 class="mb-4 p-3 bg-green-900/50 border border-green-500 rounded-md text-green-300 text-sm">
+                <span x-text="success"></span>
+            </div>
+
+            <!-- Login Form -->
+            <form @submit.prevent="handleAuth()" x-show="mode === 'login'">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                        <input type="email" x-model="email" required
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="jeff@legacy.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                        <input type="password" x-model="password" required
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" :disabled="loading"
+                        class="w-full mt-6 py-3 bg-orange-500 text-black font-bold rounded-md hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <span x-show="!loading">Sign In</span>
+                    <span x-show="loading">Signing in...</span>
+                </button>
+            </form>
+
+            <!-- Signup Form -->
+            <form @submit.prevent="handleAuth()" x-show="mode === 'signup'">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                        <input type="text" x-model="fullName" required
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="Jeff Harrison">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                        <input type="email" x-model="email" required
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="jeff@legacy.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                        <input type="password" x-model="password" required minlength="6"
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="••••••••">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Brokerage (Optional)</label>
+                        <input type="text" x-model="brokerage"
+                               class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
+                               placeholder="Legacy Real Estate">
+                    </div>
+                </div>
+                <button type="submit" :disabled="loading"
+                        class="w-full mt-6 py-3 bg-orange-500 text-black font-bold rounded-md hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <span x-show="!loading">Create Account</span>
+                    <span x-show="loading">Creating...</span>
+                </button>
+            </form>
+
+            <!-- Demo Mode -->
+            <div class="mt-6 pt-6 border-t border-gray-700">
+                <button @click="loginAsDemo()" 
+                        class="w-full py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors text-sm">
+                    Continue in Demo Mode (No Login)
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Login Buttons for Testing -->
+        <div class="mt-6 text-center text-xs text-gray-500">
+            <p>Quick Login for Testing:</p>
+            <div class="flex gap-2 mt-2 justify-center">
+                <button @click="quickLogin('jeff')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Jeff</button>
+                <button @click="quickLogin('anna')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Anna</button>
+                <button @click="quickLogin('les')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Les</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase setup
+        const SUPABASE_URL = 'https://kfomddpbpsaplyucodli.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmb21kZHBicHNhcGx5dWNvZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzE2MDMsImV4cCI6MjA3MjIwNzYwM30.ETQMg3cVef_wrMRy7eMoI4RkHT6bRHobPPRZf2GYrsY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function authApp() {
+            return {
+                mode: 'login',
+                email: '',
+                password: '',
+                fullName: '',
+                brokerage: '',
+                loading: false,
+                error: '',
+                success: '',
+
+                async init() {
+                    // Check if already logged in
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        // Redirect to main app
+                        window.location.href = '/index.html';
+                    }
+                },
+
+                async handleAuth() {
+                    this.loading = true;
+                    this.error = '';
+                    this.success = '';
+
+                    try {
+                        if (this.mode === 'login') {
+                            const { data, error } = await supabase.auth.signInWithPassword({
+                                email: this.email,
+                                password: this.password
+                            });
+
+                            if (error) throw error;
+
+                            this.success = 'Login successful! Redirecting...';
+                            setTimeout(() => {
+                                window.location.href = '/index.html';
+                            }, 1000);
+                        } else {
+                            // Sign up
+                            const { data, error } = await supabase.auth.signUp({
+                                email: this.email,
+                                password: this.password,
+                                options: {
+                                    data: {
+                                        full_name: this.fullName,
+                                        brokerage: this.brokerage
+                                    }
+                                }
+                            });
+
+                            if (error) throw error;
+
+                            // For development, auto-confirm and sign in
+                            if (data.user && !data.user.confirmed_at) {
+                                this.success = 'Account created! You can now sign in.';
+                                // Auto sign in after signup for development
+                                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                                    email: this.email,
+                                    password: this.password
+                                });
+                                
+                                if (!signInError) {
+                                    this.success = 'Account created and signed in! Redirecting...';
+                                    setTimeout(() => {
+                                        window.location.href = '/index.html';
+                                    }, 1000);
+                                    return;
+                                }
+                            }
+                            
+                            this.success = 'Account created! You can now sign in.';
+                            this.mode = 'login';
+                        }
+                    } catch (error) {
+                        this.error = error.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async quickLogin(user) {
+                    // Pre-fill credentials for testing
+                    const testUsers = {
+                        jeff: { email: 'jeff@legacy.com', password: 'legacy123' },
+                        anna: { email: 'anna@legacy.com', password: 'legacy123' },
+                        les: { email: 'les@legacy.com', password: 'legacy123' }
+                    };
+
+                    if (testUsers[user]) {
+                        this.mode = 'login';
+                        this.email = testUsers[user].email;
+                        this.password = testUsers[user].password;
+                        this.handleAuth();
+                    }
+                },
+
+                loginAsDemo() {
+                    // Set demo mode flag and redirect
+                    localStorage.setItem('demo_mode', 'true');
+                    window.location.href = '/index.html';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

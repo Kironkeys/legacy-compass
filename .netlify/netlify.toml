@@ -1,0 +1,79 @@
+redirectsOrigin = "config"
+plugins = []
+headers = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/Users/kiron/Desktop/lattest/current 2/legacy-compass-complete-working"
+publishOrigin = "config"
+commandOrigin = "ui"
+
+[build.environment]
+VITE_SUPABASE_URL = "https://kfomddpbpsaplyucodli.supabase.co"
+VITE_MAPBOX_TOKEN = "pk.eyJ1IjoibGVnYWN5Y29tcGFzcyIsImEiOiJjbWV5MTNkMDAwdGR2Mm1vZTdtNmo4Nm5mIn0.wnWv7lPl2HNZNI8hmUvb1A"
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[redirects]]
+from = "/api/*"
+to = "https://your-ghost-backend.com/api/:splat"
+status = 200.0
+force = true
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/jeff"
+to = "/index.html"
+status = 200.0
+force = true
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+X-User-Profile = "jeff"
+
+[[redirects]]
+from = "/anna"
+to = "/index.html"
+status = 200.0
+force = true
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+X-User-Profile = "anna"
+
+[[redirects]]
+from = "/les"
+to = "/index.html"
+status = 200.0
+force = true
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+X-User-Profile = "les"

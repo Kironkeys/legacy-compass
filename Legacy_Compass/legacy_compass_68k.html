@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legacy Compass — 68,733 Hayward Properties</title>
+  
+  <!-- Leaflet Core -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Leaflet MarkerCluster for 68k properties -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  
+  <style>
+    :root{
+      --bg:#0b0f19; --panel:#0d1324; --panel2:#0a1120; --text:#eaf3ff; --muted:#9fb4df;
+      --border:#162036; --neon:#49e0e8; --neon2:#6ea8ff; --green:#22c55e; --red:#ef4444; --accent:#60a5fa;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 70% 10%,#0e1423 0%,#07080b 60%);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .app{display:grid;grid-template-columns:1.2fr 1fr;height:100vh;overflow:hidden}
+    @media(max-width:1024px){.app{grid-template-columns:1fr;grid-template-rows:52vh 48vh}}
+    
+    header{
+      position:sticky;top:0;z-index:10;backdrop-filter:saturate(160%) blur(8px);
+      background:linear-gradient(180deg,rgba(10,14,23,.9),rgba(10,14,23,.6));
+      border-bottom:1px solid var(--border); padding:10px 14px; display:flex; gap:10px; align-items:center;
+    }
+    
+    h1{font-size:16px;margin:0 8px 0 0;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+    h1 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--neon),var(--neon2));box-shadow:0 0 10px var(--neon)}
+    
+    input,select,button{border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:8px 10px;border-radius:10px;outline:none}
+    input::placeholder{color:var(--muted)}
+    button{cursor:pointer;transition:all 0.2s}
+    button:hover{background:rgba(73,224,232,0.1);border-color:var(--neon)}
+    button.primary{background:linear-gradient(135deg,var(--neon),var(--neon2));border:none;color:#03141b;font-weight:700}
+    button.primary:hover{box-shadow:0 0 20px rgba(73,224,232,0.5)}
+    
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.03);border:1px solid var(--border);color:var(--muted);font-size:12px}
+    .statbar{display:flex;gap:10px;margin-left:auto}
+    .stat{background:rgba(255,255,255,.03);border:1px solid var(--border);padding:6px 10px;border-radius:10px;color:var(--muted);font-size:12px}
+    
+    #map{width:100%;height:100vh}
+    
+    .right{border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,rgba(9,12,20,.8),rgba(7,8,11,.9))}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .list{overflow:auto;padding:10px;display:grid;gap:10px}
+    
+    .card{background:rgba(10,16,28,.6);border:1px solid var(--border);border-radius:14px;padding:12px;display:grid;gap:8px;transition:transform .12s ease, box-shadow .12s ease;cursor:pointer}
+    .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.25);border-color:var(--neon)}
+    
+    .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .address{font-weight:800;letter-spacing:.2px}
+    .owner{color:var(--muted);font-size:12px}
+    .badges{display:flex;gap:6px;flex-wrap:wrap}
+    .badge{padding:4px 6px;border-radius:999px;font-size:11px;border:1px solid var(--border);background:rgba(255,255,255,.03)}
+    .badge.green{color:var(--green);border-color:#0b8b6e}
+    .badge.red{color:#ff6b6b;border-color:#7a2323}
+    
+    .actions{display:flex;gap:6px}
+    .actions button{font-size:12px;padding:6px 8px}
+    
+    /* Detail Panel Slide-over */
+    .detailPanel{position:absolute; inset:0 0 0 auto; width:0; max-width:720px; background:rgba(8,12,22,.96);
+      border-left:1px solid var(--border); overflow:auto; transition:width .18s ease; box-shadow: -24px 0 64px rgba(0,0,0,.35);}
+    .detailPanel.open{width:min(100%,720px)}
+    
+    .detailHeader{position:sticky;top:0;background:linear-gradient(180deg,rgba(13,19,36,.95),rgba(13,19,36,.75));backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:12px;display:flex;gap:8px;align-items:center}
+    .detailGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+    @media(max-width:720px){.detailGrid{grid-template-columns:1fr}}
+    
+    .tile{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:10px}
+    .tile h3{margin:0 0 8px 0;font-size:12px;color:var(--muted);letter-spacing:.2px}
+    
+    .miniMap{height:160px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+    .timeline{display:grid;gap:6px}
+    .note{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:13px}
+    
+    .footerBar{border-top:1px solid var(--border);padding:10px;display:flex;gap:8px;position:sticky;bottom:0;background:rgba(9,12,20,.95);backdrop-filter:blur(6px)}
+    
+    .wave{height:24px;display:none;align-items:center;gap:3px}
+    .dotw{width:6px;height:6px;border-radius:50%;background:var(--neon);opacity:.45;animation:wave 1s infinite}
+    .dotw:nth-child(2){animation-delay:.15s}.dotw:nth-child(3){animation-delay:.3s}.dotw:nth-child(4){animation-delay:.45s}
+    @keyframes wave{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}
+    
+    /* Neon polygon effect */
+    .leaflet-overlay-pane path.neon {
+      filter: drop-shadow(0 0 8px rgba(73,224,232,.9));
+      stroke: rgba(73,224,232,0.95); stroke-width: 3; fill: rgba(73,224,232,0.12);
+    }
+    
+    /* Cluster customization */
+    .marker-cluster {
+      background: rgba(13, 19, 36, 0.9) !important;
+      border: 2px solid #49e0e8 !important;
+    }
+    
+    .marker-cluster div {
+      background: transparent !important;
+      color: #eaf3ff !important;
+    }
+    
+    /* Loading indicator */
+    .loading-indicator {
+      position: absolute;
+      top: 80px;
+      left: 20px;
+      background: rgba(13, 19, 36, 0.95);
+      border: 1px solid var(--neon);
+      border-radius: 10px;
+      padding: 10px 15px;
+      color: var(--neon);
+      font-size: 14px;
+      z-index: 1000;
+      display: none;
+    }
+    
+    .loading-indicator.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="left">
+      <header>
+        <h1><span class="dot"></span> Legacy Compass <span class="chip">Hayward 68,733</span></h1>
+        <input id="q" placeholder="Search address or owner…" />
+        <label class="chip"><input type="checkbox" id="absenteeOnly" style="accent-color:#22c55e;margin-right:6px">Absentee only</label>
+        <label class="chip">Equity ≥ <span id="eqLabel">40</span>% <input id="eq" type="range" min="0" max="100" value="40" style="vertical-align:middle"></label>
+        <div class="statbar">
+          <div class="stat" id="statCount">Loading...</div>
+          <div class="stat" id="statAbs">0% absentee</div>
+          <div class="stat" id="statEquity">0 high equity</div>
+        </div>
+      </header>
+      <div id="map"></div>
+      <div class="loading-indicator" id="loadingIndicator">Loading properties...</div>
+    </div>
+    
+    <div class="right" style="position:relative">
+      <div class="toolbar" style="padding:10px;border-bottom:1px solid var(--border)">
+        <button id="btnGPS" class="primary">📍 Add from GPS</button>
+        <button id="btnVoice" class="chip">🎤 Voice note</button>
+        <button id="btnExport" class="chip">Export CSV</button>
+        <button id="btnCluster" class="chip">Toggle Clusters</button>
+        <div class="wave" id="voiceWave"><div class="dotw"></div><div class="dotw"></div><div class="dotw"></div><div class="dotw"></div></div>
+      </div>
+      <div class="list" id="list">
+        <div class="card" style="text-align:center;padding:40px;opacity:0.5">
+          <div>Loading 68,733 properties...</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:10px">This may take a moment</div>
+        </div>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="detailPanel" id="detail">
+        <div class="detailHeader">
+          <div style="flex:1">
+            <div class="address" id="d_addr">—</div>
+            <div class="owner" id="d_owner">—</div>
+            <div class="badges" id="d_badges" style="margin-top:6px"></div>
+          </div>
+          <button id="btnBack" class="chip">← Back to list</button>
+        </div>
+        <div class="detailGrid">
+          <div class="tile">
+            <h3>Mini Map</h3>
+            <div id="miniMap" class="miniMap"></div>
+          </div>
+          <div class="tile">
+            <h3>Quick Actions</h3>
+            <div class="actions">
+              <button class="primary">📞 Call</button>
+              <button class="chip">💬 Text</button>
+              <button class="chip">✉️ Email</button>
+              <button class="chip">🚗 Route</button>
+              <button class="chip">📬 Mailer</button>
+            </div>
+          </div>
+          <div class="tile">
+            <h3>Owner Info</h3>
+            <div id="d_ownerBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Property Info</h3>
+            <div id="d_propBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Market Insight</h3>
+            <div id="d_marketBlock"></div>
+          </div>
+          <div class="tile">
+            <h3>Equity / Mortgage</h3>
+            <div id="d_equityBlock"></div>
+          </div>
+          <div class="tile" style="grid-column:1/-1">
+            <h3>Notes & Activity</h3>
+            <div class="timeline" id="d_timeline"></div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <input id="d_noteInput" placeholder="Type a note…" style="flex:1" />
+              <button id="d_saveNote" class="primary">Save</button>
+              <button id="d_voiceNote" class="chip">🎤 Voice</button>
+            </div>
+          </div>
+        </div>
+        <div class="footerBar">
+          <button class="chip" id="d_hot">★ Add to Hot List</button>
+          <button class="chip" id="d_follow">⏰ Follow-up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet Core -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Leaflet MarkerCluster -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  
+  <!-- ESRI for satellite imagery -->
+  <script src="https://unpkg.com/esri-leaflet@3.0.11/dist/esri-leaflet.js"></script>
+  
+  <!-- Our enhanced components -->
+  <script src="js/property-loader-68k.js"></script>
+  <script src="js/map-interaction-enhanced.js"></script>
+  
+  <script>
+    // Initialize map with Hayward center
+    const HAYWARD_CENTER = { lat: 37.6688, lng: -122.0808 };
+    const map = L.map('map', { 
+      zoomControl: false, 
+      attributionControl: false,
+      preferCanvas: true // Better performance for many markers
+    }).setView([HAYWARD_CENTER.lat, HAYWARD_CENTER.lng], 13);
+    
+    // Satellite basemap
+    L.esri.basemapLayer('Imagery').addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    
+    // Initialize property loader with 68k properties
+    let propertyLoader = null;
+    let panelController = null;
+    let mapController = null;
+    
+    // Notes database
+    const notesDB = JSON.parse(localStorage.getItem('legacy_compass_notes') || '{}');
+    function saveNotes() { 
+      localStorage.setItem('legacy_compass_notes', JSON.stringify(notesDB)); 
+    }
+    
+    // Initialize controllers
+    async function initializeApp() {
+      // Initialize panel controller
+      panelController = new PropertyPanelController(document.querySelector('.right'));
+      window.panelController = panelController;
+      
+      // Load 68k properties
+      propertyLoader = new PropertyLoader68K(map);
+      window.propertyLoader = propertyLoader;
+      
+      // Wait for properties to load
+      await propertyLoader.init();
+      
+      // Initialize map interaction controller
+      mapController = new MapInteractionController(
+        map, 
+        propertyLoader.allProperties,
+        panelController
+      );
+      window.mapController = mapController;
+      
+      // Set up search and filters
+      setupSearchAndFilters();
+      
+      // Update initial view
+      updateListView();
+    }
+    
+    // Search and filter setup
+    function setupSearchAndFilters() {
+      const qEl = document.getElementById('q');
+      const eqEl = document.getElementById('eq');
+      const eqLabel = document.getElementById('eqLabel');
+      const absOnlyEl = document.getElementById('absenteeOnly');
+      
+      // Update equity label
+      eqEl.addEventListener('input', () => {
+        eqLabel.textContent = eqEl.value;
+        applyFilters();
+      });
+      
+      // Search input
+      qEl.addEventListener('input', debounce(applyFilters, 300));
+      
+      // Absentee filter
+      absOnlyEl.addEventListener('change', applyFilters);
+      
+      // Toggle clustering
+      document.getElementById('btnCluster').onclick = () => {
+        if (propertyLoader.markerCluster) {
+          if (map.hasLayer(propertyLoader.markerCluster)) {
+            map.removeLayer(propertyLoader.markerCluster);
+          } else {
+            map.addLayer(propertyLoader.markerCluster);
+          }
+        }
+      };
+    }
+    
+    // Apply filters
+    function applyFilters() {
+      const filters = {
+        search: document.getElementById('q').value,
+        minEquity: parseInt(document.getElementById('eq').value),
+        absenteeOnly: document.getElementById('absenteeOnly').checked
+      };
+      
+      const filtered = propertyLoader.getFilteredProperties(filters);
+      
+      // Update panel
+      panelController.showPropertyList(filtered.slice(0, 100)); // Show first 100
+      
+      // Handle search narrowing
+      if (filtered.length === 1) {
+        // Single result - zoom and select
+        mapController.selectProperty(filtered[0]);
+      } else if (filtered.length <= 10) {
+        // Few results - fit bounds
+        mapController.fitBoundsToProperties(filtered);
+      }
+      
+      // Update stats
+      updateStats(filtered);
+    }
+    
+    // Update list view
+    function updateListView() {
+      const visible = propertyLoader.visibleProperties.slice(0, 50);
+      panelController.showPropertyList(visible);
+    }
+    
+    // Update stats
+    function updateStats(properties) {
+      const total = properties.length;
+      const absentee = properties.filter(p => !p.ownerOccupied).length;
+      const highEquity = properties.filter(p => p.equity >= 60).length;
+      
+      document.getElementById('statCount').textContent = 
+        `${total.toLocaleString()} properties`;
+      document.getElementById('statAbs').textContent = 
+        `${Math.round((absentee/total) * 100)}% absentee`;
+      document.getElementById('statEquity').textContent = 
+        `${highEquity.toLocaleString()} high equity`;
+    }
+    
+    // Debounce helper
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+    
+    // GPS functionality
+    document.getElementById('btnGPS').onclick = () => {
+      if (!navigator.geolocation) {
+        alert('Geolocation not supported');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          // Find nearest property
+          let nearest = null;
+          let minDistance = Infinity;
+          
+          propertyLoader.allProperties.forEach(p => {
+            const dist = Math.sqrt(
+              Math.pow(p.lat - latitude, 2) + 
+              Math.pow(p.lng - longitude, 2)
+            );
+            if (dist < minDistance) {
+              minDistance = dist;
+              nearest = p;
+            }
+          });
+          
+          if (nearest && minDistance < 0.0005) { // ~50m
+            mapController.selectProperty(nearest);
+          } else {
+            // Create new property at GPS location
+            console.log('Would create new property at', latitude, longitude);
+          }
+        },
+        (error) => {
+          alert('Location error: ' + error.message);
+        },
+        { enableHighAccuracy: true }
+      );
+    };
+    
+    // Export functionality
+    document.getElementById('btnExport').onclick = () => {
+      const filtered = propertyLoader.getFilteredProperties({
+        search: document.getElementById('q').value,
+        minEquity: parseInt(document.getElementById('eq').value),
+        absenteeOnly: document.getElementById('absenteeOnly').checked
+      });
+      
+      // Convert to CSV
+      const csv = convertToCSV(filtered);
+      downloadCSV(csv, 'legacy_compass_export.csv');
+    };
+    
+    function convertToCSV(properties) {
+      const headers = ['Address', 'Owner', 'Owner Occupied', 'Equity %', 'Phone', 'Email', 'Beds', 'Baths', 'SqFt', 'Year Built'];
+      const rows = properties.map(p => [
+        p.address,
+        p.owner,
+        p.ownerOccupied ? 'Yes' : 'No',
+        p.equity,
+        p.ownerPhone,
+        p.ownerEmail,
+        p.beds,
+        p.baths,
+        p.sqft,
+        p.yearBuilt
+      ]);
+      
+      return [headers, ...rows].map(row => row.join(',')).join('\n');
+    }
+    
+    function downloadCSV(csv, filename) {
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    // Back button
+    document.getElementById('btnBack').onclick = () => {
+      document.getElementById('detail').classList.remove('open');
+    };
+    
+    // Initialize the app
+    initializeApp().catch(console.error);
+  </script>
+</body>
+</html>

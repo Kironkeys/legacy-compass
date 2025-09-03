@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Legacy Compass - Real Estate Intelligence</title>
+    
+    <!-- Mapbox -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Alpine.js for reactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        /* Container - ALWAYS side by side */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        /* Header */
+        .header {
+            background: #0a0a0a;
+            border-bottom: 1px solid #ff9500;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ff9500;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .logo-dot {
+            width: 10px;
+            height: 10px;
+            background: #ff9500;
+            border-radius: 50%;
+        }
+        
+        .farm-name {
+            color: #ffb700;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #ffb700;
+            margin-top: 2px;
+        }
+        
+        /* Main Content - FORCE SIDE BY SIDE */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: row; /* ALWAYS row, never column */
+            overflow: hidden;
+        }
+        
+        /* Map Section - LEFT */
+        .map-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #ff9500;
+            min-width: 0; /* Allow shrinking */
+        }
+        
+        .map-search {
+            background: #0a0a0a;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .search-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            border-radius: 6px;
+            padding: 10px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .search-input::placeholder {
+            color: #666;
+        }
+        
+        .search-btn {
+            background: #ff9500;
+            color: black;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        #map {
+            flex: 1;
+            background: #1a1a1a;
+        }
+        
+        /* Properties Section - RIGHT */
+        .properties-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* Allow shrinking */
+        }
+        
+        .properties-header {
+            background: #0a0a0a;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            color: #ffb700;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        
+        .filter-btn.active {
+            background: #ffb700;
+            color: black;
+        }
+        
+        .upload-btn {
+            background: #ff9500;
+            color: black;
+            border: none;
+            font-weight: bold;
+        }
+        
+        /* Property List */
+        .property-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #000;
+        }
+        
+        .property-card {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .property-card:hover {
+            border-color: #ff9500;
+            background: #1a1a1a;
+        }
+        
+        .property-card.selected {
+            border-color: #00ff41;
+            background: #0a1a0a;
+        }
+        
+        .property-address {
+            color: #ff9500;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+        
+        .property-owner {
+            color: #ffb700;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        
+        .property-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .property-tag {
+            background: #ff9500;
+            color: black;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        /* Footer Actions */
+        .footer-actions {
+            background: #0a0a0a;
+            border-top: 1px solid #ff9500;
+            padding: 10px;
+            flex-shrink: 0;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        
+        .action-btn {
+            background: #1a1a1a;
+            border: 1px solid #ffb700;
+            color: #ffb700;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .action-btn:hover {
+            background: #ffb700;
+            color: black;
+        }
+        
+        .hot-list-btn {
+            background: #ff3333;
+            border-color: #ff3333;
+            color: white;
+        }
+        
+        .hot-list-btn:hover {
+            background: #ff5555;
+        }
+        
+        /* Property Details Panel - Overlays the property list */
+        .details-panel {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 50%;
+            min-width: 350px;
+            max-width: 500px;
+            height: 100vh;
+            background: #0f1419;
+            border-left: 2px solid #ff9500;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.8);
+        }
+        
+        .details-panel.active {
+            right: 0;
+        }
+        
+        .details-header {
+            background: #1a1f2a;
+            padding: 20px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .details-address {
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .details-owner {
+            color: #999;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .details-tags {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .owner-tag {
+            background: #00ff41;
+            color: black;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .equity-tag {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .follow-up-tag {
+            color: #ff9500;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .close-details {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            color: #999;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .close-details:hover {
+            color: white;
+        }
+        
+        .details-content {
+            padding: 0;
+        }
+        
+        .detail-section {
+            padding: 20px;
+            border-bottom: 1px solid #1a1f2a;
+        }
+        
+        .section-title {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        /* Mini Map Section */
+        .detail-minimap {
+            height: 200px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        
+        .quick-action {
+            background: #1a1f2a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-action:hover {
+            background: #2a2f3a;
+            border-color: #ff9500;
+        }
+        
+        .quick-action.primary {
+            background: #4a9eff;
+            border-color: #4a9eff;
+            color: white;
+        }
+        
+        .action-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        
+        .action-label {
+            font-size: 11px;
+            color: #999;
+        }
+        
+        /* Info Rows */
+        .info-row {
+            margin-bottom: 12px;
+        }
+        
+        .info-label {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            color: white;
+            font-size: 15px;
+        }
+        
+        .verified {
+            color: #00ff41;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .valid {
+            color: #4a9eff;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        /* Notes Section */
+        .notes-input {
+            width: 100%;
+            background: #1a1f2a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+            color: white;
+            resize: none;
+            min-height: 80px;
+            font-family: inherit;
+        }
+        
+        .notes-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .save-btn {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .voice-btn {
+            background: transparent;
+            color: #999;
+            border: 1px solid #333;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        /* Bottom Actions */
+        .detail-actions {
+            padding: 20px;
+            display: flex;
+            gap: 15px;
+        }
+        
+        .detail-action-btn {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #333;
+            color: #999;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .detail-action-btn:hover {
+            background: #1a1f2a;
+            border-color: #ff9500;
+            color: #ff9500;
+        }
+        
+        .detail-action-btn.hot {
+            border-color: #ff3333;
+            color: #ff3333;
+        }
+        
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #ffb700;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #333;
+            border-top-color: #ff9500;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Mini Map */
+        .mini-map {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            width: 150px;
+            height: 150px;
+            background: #000;
+            border: 2px solid #ff9500;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        
+        /* Mobile adjustments - but KEEP side by side */
+        @media (max-width: 600px) {
+            .stat-value { font-size: 16px; }
+            .stat-label { font-size: 9px; }
+            .search-input { font-size: 12px; padding: 8px; }
+            .property-card { padding: 10px; }
+            .action-btn { font-size: 12px; padding: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" x-data="legacyCompass()" x-init="init()">
+        
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <div class="logo">
+                    <div class="logo-dot"></div>
+                    <span>Legacy Compass</span>
+                </div>
+                <div class="farm-name" x-text="farmName">Jeff & Anna Farm</div>
+            </div>
+            <div class="stats">
+                <div>
+                    <div class="stat-value" style="color: #ff9500;" x-text="stats.total">2000</div>
+                    <div class="stat-label">Properties</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="color: #ffb700;" x-text="stats.absentee">40%</div>
+                    <div class="stat-label">Absentee</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="color: #00ff41;" x-text="stats.avgEquity">48%</div>
+                    <div class="stat-label">Avg Equity</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content - ALWAYS SIDE BY SIDE -->
+        <div class="main-content">
+            
+            <!-- Map Section (LEFT) -->
+            <div class="map-section">
+                <div class="map-search">
+                    <div class="search-box">
+                        <input type="text" 
+                               class="search-input" 
+                               placeholder="Jump to address..."
+                               x-model="mapSearch"
+                               @keyup.enter="searchMap()">
+                        <button class="search-btn" @click="searchMap()">→</button>
+                    </div>
+                </div>
+                <div id="map">
+                    <!-- Mini Map Overlay -->
+                    <div class="mini-map" id="minimap"></div>
+                </div>
+            </div>
+            
+            <!-- Properties Section (RIGHT) -->
+            <div class="properties-section">
+                <div class="properties-header">
+                    <input type="text" 
+                           class="search-input" 
+                           placeholder="Filter by owner, phone, address..."
+                           x-model="propertySearch"
+                           @input="filterProperties()">
+                    <div class="filter-buttons">
+                        <button class="filter-btn" 
+                                :class="{ active: filters.absentee }"
+                                @click="toggleFilter('absentee')">
+                            🏠 Absentee
+                        </button>
+                        <button class="filter-btn"
+                                :class="{ active: filters.tagged }"
+                                @click="toggleFilter('tagged')">
+                            🏷️ Tags
+                        </button>
+                        <button class="filter-btn upload-btn" @click="uploadCSV()">
+                            📁 Upload CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="property-list" id="property-list">
+                    <template x-if="loading">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            <div style="margin-top: 10px;">Loading properties...</div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="!loading">
+                        <template x-for="property in filteredProperties" :key="property.id">
+                            <div class="property-card" 
+                                 :class="{ selected: selectedProperty?.id === property.id }"
+                                 @click="selectProperty(property)">
+                                <div class="property-address" x-text="property.address"></div>
+                                <div class="property-owner" x-text="property.owner"></div>
+                                <div class="property-details">
+                                    <span x-text="property.phone || 'No phone'"></span>
+                                    <span x-show="property.absentee" class="property-tag">ABSENTEE</span>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Footer Actions -->
+        <div class="footer-actions">
+            <div class="action-buttons">
+                <button class="action-btn" @click="startVoiceNote()">
+                    🎤 Voice Note
+                </button>
+                <button class="action-btn" @click="exportData()">
+                    📊 Export
+                </button>
+                <button class="action-btn hot-list-btn" @click="showHotList()">
+                    🔥 Hot List (<span x-text="hotListCount">0</span>)
+                </button>
+            </div>
+        </div>
+        
+        <!-- Property Details Panel -->
+        <div class="details-panel" :class="{ active: showDetails }" x-show="selectedProperty">
+            <!-- Header -->
+            <div class="details-header">
+                <button class="close-details" @click="closeDetails()">← Back to list</button>
+                <div class="details-address" x-text="selectedProperty?.address"></div>
+                <div class="details-owner" x-text="selectedProperty?.owner"></div>
+                <div class="details-tags">
+                    <span class="owner-tag">Owner</span>
+                    <span class="equity-tag" x-text="'Equity ' + (selectedProperty?.equity || 0) + '%'"></span>
+                    <span class="follow-up-tag">Follow-up</span>
+                </div>
+            </div>
+            
+            <div class="details-content" x-show="selectedProperty">
+                <!-- Mini Map -->
+                <div class="detail-section">
+                    <div class="section-title">Mini Map</div>
+                    <div class="detail-minimap" id="detail-minimap"></div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="detail-section">
+                    <div class="section-title">Quick Actions</div>
+                    <div class="quick-actions">
+                        <div class="quick-action primary" @click="callOwner()">
+                            <div class="action-icon">📞</div>
+                            <div class="action-label">Call</div>
+                        </div>
+                        <div class="quick-action" @click="textOwner()">
+                            <div class="action-icon">💬</div>
+                            <div class="action-label">Text</div>
+                        </div>
+                        <div class="quick-action" @click="emailOwner()">
+                            <div class="action-icon">✉️</div>
+                            <div class="action-label">Email</div>
+                        </div>
+                        <div class="quick-action" @click="getDirections()">
+                            <div class="action-icon">🚗</div>
+                            <div class="action-label">Route</div>
+                        </div>
+                        <div class="quick-action" @click="createMailer()">
+                            <div class="action-icon">📮</div>
+                            <div class="action-label">Mailer</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Owner Info -->
+                <div class="detail-section">
+                    <div class="section-title">Owner Info</div>
+                    <div class="info-row">
+                        <div class="info-label">Phone:</div>
+                        <div class="info-value">
+                            <span x-text="selectedProperty?.phone || 'No phone'"></span>
+                            <span x-show="selectedProperty?.phone" class="verified">verified</span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Email:</div>
+                        <div class="info-value">
+                            <span x-text="selectedProperty?.email || 'contact@example.com'"></span>
+                            <span x-show="selectedProperty?.email" class="valid">valid</span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Mailing:</div>
+                        <div class="info-value" x-text="selectedProperty?.mailingAddress || selectedProperty?.address"></div>
+                    </div>
+                </div>
+                
+                <!-- Property Info -->
+                <div class="detail-section">
+                    <div class="section-title">Property Info</div>
+                    <div class="info-row">
+                        <div class="info-value">
+                            <span x-text="(selectedProperty?.bedrooms || '4') + ' bd'"></span> • 
+                            <span x-text="(selectedProperty?.bathrooms || '3') + ' ba'"></span> • 
+                            <span x-text="(selectedProperty?.sqft || '1320') + ' sqft'"></span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-value">
+                            Lot: <span x-text="selectedProperty?.lotSize || '5150 sqft'"></span> • 
+                            Built: <span x-text="selectedProperty?.yearBuilt || '1991'"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Market Insight -->
+                <div class="detail-section">
+                    <div class="section-title">Market Insight</div>
+                    <div class="info-row">
+                        <div class="info-label">Last sale:</div>
+                        <div class="info-value">
+                            <span x-text="selectedProperty?.lastSaleDate || '2001-02-15'"></span> • 
+                            <span x-text="'$' + (selectedProperty?.lastSalePrice || '162,000').toLocaleString()"></span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Area turnover (est):</div>
+                        <div class="info-value" x-text="(selectedProperty?.areaTurnover || '10') + '%'"></div>
+                    </div>
+                </div>
+                
+                <!-- Equity / Mortgage -->
+                <div class="detail-section">
+                    <div class="section-title">Equity / Mortgage</div>
+                    <div class="info-row">
+                        <div class="info-label">Equity:</div>
+                        <div class="info-value" style="color: #00ff41;" x-text="(selectedProperty?.equity || '50') + '%'"></div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Lender:</div>
+                        <div class="info-value" x-text="selectedProperty?.lender || 'Wells Fargo'"></div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Loan date:</div>
+                        <div class="info-value" x-text="selectedProperty?.loanDate || '2001-02-15'"></div>
+                    </div>
+                </div>
+                
+                <!-- Notes & Activity -->
+                <div class="detail-section">
+                    <div class="section-title">Notes & Activity</div>
+                    <div style="color: #666; margin-bottom: 10px;">No activity yet.</div>
+                    <textarea class="notes-input" 
+                              placeholder="Type a note..." 
+                              x-model="selectedProperty.notes"></textarea>
+                    <div class="notes-actions">
+                        <button class="voice-btn">🎤 Voice</button>
+                        <button class="save-btn" @click="saveNotes()">Save</button>
+                    </div>
+                </div>
+                
+                <!-- Bottom Actions -->
+                <div class="detail-actions">
+                    <button class="detail-action-btn hot" @click="addToHotList()">
+                        ⭐ Add to Hot List
+                    </button>
+                    <button class="detail-action-btn" @click="setFollowUp()">
+                        🏷️ Follow-up
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- App Scripts -->
+    <script src="/js/config.js"></script>
+    <script src="/js/supabase-client.js"></script>
+    <script src="/js/farm-loader.js"></script>
+    <script>
+        function legacyCompass() {
+            return {
+                // State
+                loading: true,
+                properties: [],
+                filteredProperties: [],
+                selectedProperty: null,
+                showDetails: false,
+                mapSearch: '',
+                propertySearch: '',
+                farmName: 'Jeff & Anna Farm',
+                hotListCount: 0,
+                map: null,
+                miniMap: null,
+                markers: [],
+                filters: {
+                    absentee: false,
+                    tagged: false
+                },
+                stats: {
+                    total: 0,
+                    absentee: '0%',
+                    avgEquity: '0%'
+                },
+                
+                // Initialize
+                async init() {
+                    console.log('Initializing Legacy Compass...');
+                    await this.initMap();
+                    await this.loadProperties();
+                    this.calculateStats();
+                },
+                
+                // Initialize Maps
+                async initMap() {
+                    const config = window.CONFIG || window.LEGACY_CONFIG;
+                    if (!config?.MAPBOX_TOKEN) {
+                        console.error('Mapbox token not found');
+                        return;
+                    }
+                    
+                    mapboxgl.accessToken = config.MAPBOX_TOKEN;
+                    
+                    // Main Map
+                    this.map = new mapboxgl.Map({
+                        container: 'map',
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-122.0808, 37.6688],
+                        zoom: 17,
+                        pitch: 45,
+                        bearing: -20
+                    });
+                    
+                    // Mini Map
+                    this.miniMap = new mapboxgl.Map({
+                        container: 'minimap',
+                        style: 'mapbox://styles/mapbox/dark-v11',
+                        center: [-122.0808, 37.6688],
+                        zoom: 12,
+                        interactive: false,
+                        attributionControl: false
+                    });
+                    
+                    // Add navigation controls to main map
+                    this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                    
+                    // Sync mini map with main map
+                    this.map.on('move', () => {
+                        this.miniMap.setCenter(this.map.getCenter());
+                    });
+                },
+                
+                // Load Properties
+                async loadProperties() {
+                    this.loading = true;
+                    
+                    // Try to load from CSV first
+                    if (window.FarmLoader) {
+                        try {
+                            console.log('Loading properties from CSV...');
+                            const properties = await window.FarmLoader.loadFarmData('/jeff_annaFarm.csv');
+                            if (properties && properties.length > 0) {
+                                this.properties = properties;
+                                this.filteredProperties = properties;
+                                this.addMapMarkers(properties);
+                                this.loading = false;
+                                return;
+                            }
+                        } catch (err) {
+                            console.error('Error loading CSV:', err);
+                        }
+                    }
+                    
+                    // Check for Supabase
+                    if (window.supabaseClient) {
+                        try {
+                            const { data, error } = await window.supabaseClient
+                                .from('properties')
+                                .select('*')
+                                .limit(100);
+                            
+                            if (data) {
+                                this.properties = data;
+                                this.filteredProperties = data;
+                                this.addMapMarkers(data);
+                            }
+                        } catch (err) {
+                            console.error('Error loading from Supabase:', err);
+                            this.loadSampleData();
+                        }
+                    } else {
+                        this.loadSampleData();
+                    }
+                    
+                    this.loading = false;
+                },
+                
+                // Load Sample Data
+                loadSampleData() {
+                    // Sample data for demo
+                    this.properties = [
+                        {
+                            id: 1,
+                            address: '123 Main St, Napa, CA',
+                            owner: 'John Smith',
+                            phone: '(707) 555-0123',
+                            lat: 37.6688,
+                            lng: -122.0808,
+                            absentee: true,
+                            yearBuilt: 1985,
+                            sqft: 2400,
+                            lotSize: '0.25 acres',
+                            value: 850000,
+                            equity: 65
+                        },
+                        {
+                            id: 2,
+                            address: '456 Oak Ave, Napa, CA',
+                            owner: 'Jane Doe',
+                            phone: '(707) 555-0456',
+                            lat: 37.6698,
+                            lng: -122.0798,
+                            absentee: false,
+                            yearBuilt: 1992,
+                            sqft: 1800,
+                            lotSize: '0.18 acres',
+                            value: 720000,
+                            equity: 45
+                        },
+                        {
+                            id: 3,
+                            address: '789 Vine Rd, Napa, CA',
+                            owner: 'Robert Johnson',
+                            phone: null,
+                            lat: 37.6678,
+                            lng: -122.0818,
+                            absentee: true,
+                            yearBuilt: 1978,
+                            sqft: 3200,
+                            lotSize: '0.5 acres',
+                            value: 1200000,
+                            equity: 72
+                        }
+                    ];
+                    this.filteredProperties = [...this.properties];
+                    this.addMapMarkers(this.properties);
+                },
+                
+                // Add markers to map
+                addMapMarkers(properties) {
+                    if (!this.map) return;
+                    
+                    // Clear existing markers
+                    this.markers.forEach(m => m.remove());
+                    this.markers = [];
+                    
+                    // Add new markers
+                    properties.forEach(prop => {
+                        const lat = prop.lat || prop.LATITUDE || prop.LAT;
+                        const lng = prop.lng || prop.LONGITUDE || prop.LON || prop.LNG;
+                        
+                        if (lat && lng) {
+                            const el = document.createElement('div');
+                            el.style.width = '20px';
+                            el.style.height = '20px';
+                            el.style.borderRadius = '50%';
+                            
+                            // Check if absentee
+                            const isAbsentee = prop.absentee || 
+                                              prop.OWNER_OCCUPIED === 'N' || 
+                                              prop.ABSENTEE_OWNER === 'Y' ||
+                                              (prop.MAIL_CITY && prop.MAIL_CITY !== prop.CITY);
+                            
+                            el.style.background = isAbsentee ? '#ff9500' : '#00ff41';
+                            el.style.border = '2px solid white';
+                            el.style.cursor = 'pointer';
+                            
+                            const marker = new mapboxgl.Marker(el)
+                                .setLngLat([parseFloat(lng), parseFloat(lat)])
+                                .addTo(this.map);
+                            
+                            el.addEventListener('click', () => {
+                                this.selectProperty(prop);
+                            });
+                            
+                            this.markers.push(marker);
+                        }
+                    });
+                    
+                    // Center map on first property with coordinates
+                    if (properties.length > 0) {
+                        const firstProp = properties.find(p => {
+                            const lat = p.lat || p.LATITUDE || p.LAT;
+                            const lng = p.lng || p.LONGITUDE || p.LON || p.LNG;
+                            return lat && lng;
+                        });
+                        
+                        if (firstProp) {
+                            const lat = firstProp.lat || firstProp.LATITUDE || firstProp.LAT;
+                            const lng = firstProp.lng || firstProp.LONGITUDE || firstProp.LON || firstProp.LNG;
+                            this.map.setCenter([parseFloat(lng), parseFloat(lat)]);
+                        }
+                    }
+                },
+                
+                // Calculate Stats
+                calculateStats() {
+                    this.stats.total = this.properties.length;
+                    
+                    // Count absentee properties
+                    const absenteeCount = this.properties.filter(p => {
+                        // Check various fields that might indicate absentee
+                        return p.absentee || 
+                               p.OWNER_OCCUPIED === 'N' || 
+                               p.ABSENTEE_OWNER === 'Y' ||
+                               (p.MAIL_CITY && p.MAIL_CITY !== p.CITY);
+                    }).length;
+                    this.stats.absentee = Math.round((absenteeCount / this.stats.total) * 100) + '%';
+                    
+                    // Calculate average equity
+                    const equityValues = this.properties
+                        .map(p => p.equity || p.EQUITY_PERCENT || 0)
+                        .filter(e => e > 0);
+                    const avgEquity = equityValues.length > 0 
+                        ? equityValues.reduce((sum, e) => sum + e, 0) / equityValues.length
+                        : 0;
+                    this.stats.avgEquity = Math.round(avgEquity) + '%';
+                },
+                
+                // Select Property
+                selectProperty(property) {
+                    // Map CSV fields to expected property fields
+                    this.selectedProperty = {
+                        ...property,
+                        address: property.address || property.PROPERTY_ADDRESS || property.SITE_ADDR,
+                        owner: property.owner || property.OWNER_NAME || property.OWNER,
+                        phone: property.phone || property.PHONE || property.OWNER_PHONE,
+                        email: property.email || property.EMAIL,
+                        lat: property.lat || property.LATITUDE || property.LAT,
+                        lng: property.lng || property.LONGITUDE || property.LON || property.LNG,
+                        yearBuilt: property.yearBuilt || property.YEAR_BUILT || property.YR_BLT,
+                        sqft: property.sqft || property.SQUARE_FEET || property.LIVING_AREA,
+                        lotSize: property.lotSize || property.LOT_SIZE || property.LOT_SF,
+                        bedrooms: property.bedrooms || property.BEDS || property.BEDROOMS,
+                        bathrooms: property.bathrooms || property.BATHS || property.BATHROOMS,
+                        value: property.value || property.ESTIMATED_VALUE || property.AVM,
+                        equity: property.equity || property.EQUITY_PERCENT,
+                        lastSaleDate: property.lastSaleDate || property.LAST_SALE_DATE,
+                        lastSalePrice: property.lastSalePrice || property.LAST_SALE_PRICE,
+                        mailingAddress: property.mailingAddress || property.MAIL_ADDR || property.MAILING_ADDRESS,
+                        absentee: property.absentee || property.OWNER_OCCUPIED === 'N' || property.ABSENTEE_OWNER === 'Y'
+                    };
+                    
+                    this.showDetails = true;
+                    
+                    // Center map on property
+                    const lat = this.selectedProperty.lat;
+                    const lng = this.selectedProperty.lng;
+                    if (lat && lng && this.map) {
+                        this.map.flyTo({
+                            center: [parseFloat(lng), parseFloat(lat)],
+                            zoom: 18,
+                            pitch: 60
+                        });
+                        
+                        // Update mini map in details panel if it exists
+                        setTimeout(() => {
+                            const miniMapEl = document.getElementById('detail-minimap');
+                            if (miniMapEl && !this.detailMiniMap) {
+                                this.detailMiniMap = new mapboxgl.Map({
+                                    container: 'detail-minimap',
+                                    style: 'mapbox://styles/mapbox/satellite-v9',
+                                    center: [parseFloat(lng), parseFloat(lat)],
+                                    zoom: 18,
+                                    interactive: false,
+                                    attributionControl: false
+                                });
+                                
+                                // Add marker
+                                new mapboxgl.Marker({ color: '#00ff41' })
+                                    .setLngLat([parseFloat(lng), parseFloat(lat)])
+                                    .addTo(this.detailMiniMap);
+                            } else if (this.detailMiniMap) {
+                                this.detailMiniMap.setCenter([parseFloat(lng), parseFloat(lat)]);
+                            }
+                        }, 300);
+                    }
+                },
+                
+                // Close Details
+                closeDetails() {
+                    this.showDetails = false;
+                },
+                
+                // Filter Properties
+                filterProperties() {
+                    let filtered = [...this.properties];
+                    
+                    // Text search
+                    if (this.propertySearch) {
+                        const search = this.propertySearch.toLowerCase();
+                        filtered = filtered.filter(p => 
+                            p.address.toLowerCase().includes(search) ||
+                            p.owner.toLowerCase().includes(search) ||
+                            (p.phone && p.phone.includes(search))
+                        );
+                    }
+                    
+                    // Absentee filter
+                    if (this.filters.absentee) {
+                        filtered = filtered.filter(p => p.absentee);
+                    }
+                    
+                    this.filteredProperties = filtered;
+                    this.addMapMarkers(filtered);
+                },
+                
+                // Toggle Filter
+                toggleFilter(filter) {
+                    this.filters[filter] = !this.filters[filter];
+                    this.filterProperties();
+                },
+                
+                // Search Map
+                searchMap() {
+                    // Implement geocoding search
+                    console.log('Searching for:', this.mapSearch);
+                },
+                
+                // Upload CSV
+                uploadCSV() {
+                    console.log('Upload CSV clicked');
+                    // Implement file upload
+                },
+                
+                // Voice Note
+                startVoiceNote() {
+                    console.log('Voice note started');
+                    // Implement voice recording
+                },
+                
+                // Export Data
+                exportData() {
+                    console.log('Exporting data');
+                    // Implement data export
+                },
+                
+                // Show Hot List
+                showHotList() {
+                    console.log('Showing hot list');
+                    // Implement hot list view
+                },
+                
+                // Quick Action Methods
+                callOwner() {
+                    const phone = this.selectedProperty?.phone;
+                    if (phone) {
+                        window.location.href = `tel:${phone.replace(/\D/g, '')}`;
+                    } else {
+                        alert('No phone number available');
+                    }
+                },
+                
+                textOwner() {
+                    const phone = this.selectedProperty?.phone;
+                    if (phone) {
+                        window.location.href = `sms:${phone.replace(/\D/g, '')}`;
+                    } else {
+                        alert('No phone number available');
+                    }
+                },
+                
+                emailOwner() {
+                    const email = this.selectedProperty?.email || 'contact@example.com';
+                    const subject = `Regarding property at ${this.selectedProperty?.address}`;
+                    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+                },
+                
+                getDirections() {
+                    const address = this.selectedProperty?.address;
+                    if (address) {
+                        const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+                        window.open(url, '_blank');
+                    }
+                },
+                
+                createMailer() {
+                    console.log('Creating mailer for:', this.selectedProperty?.address);
+                    // Implement mailer creation
+                },
+                
+                // Notes Methods
+                saveNotes() {
+                    console.log('Saving notes:', this.selectedProperty?.notes);
+                    // Save to local storage or database
+                    if (this.selectedProperty) {
+                        localStorage.setItem(`notes_${this.selectedProperty.id}`, this.selectedProperty.notes || '');
+                        alert('Notes saved!');
+                    }
+                },
+                
+                // Hot List Methods
+                addToHotList() {
+                    if (this.selectedProperty) {
+                        let hotList = JSON.parse(localStorage.getItem('hotList') || '[]');
+                        if (!hotList.find(p => p.id === this.selectedProperty.id)) {
+                            hotList.push(this.selectedProperty);
+                            localStorage.setItem('hotList', JSON.stringify(hotList));
+                            this.hotListCount = hotList.length;
+                            alert('Added to Hot List!');
+                        } else {
+                            alert('Already in Hot List');
+                        }
+                    }
+                },
+                
+                setFollowUp() {
+                    console.log('Setting follow-up for:', this.selectedProperty?.address);
+                    // Implement follow-up scheduling
+                    alert('Follow-up scheduled!');
+                }
+            };
+        }
+    </script>
+</body>
+</html>
