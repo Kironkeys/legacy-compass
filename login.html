@@ -95,7 +95,7 @@
                         <label class="block text-sm font-medium text-gray-400 mb-1">Brokerage (Optional)</label>
                         <input type="text" x-model="brokerage"
                                class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md focus:border-orange-500 focus:outline-none"
-                               placeholder="Legacy Real Estate">
+                               placeholder="Your Brokerage (Optional)">
                     </div>
                 </div>
                 <button type="submit" :disabled="loading"
@@ -105,23 +105,6 @@
                 </button>
             </form>
 
-            <!-- Demo Mode -->
-            <div class="mt-6 pt-6 border-t border-gray-700">
-                <button @click="loginAsDemo()" 
-                        class="w-full py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors text-sm">
-                    Continue in Demo Mode (No Login)
-                </button>
-            </div>
-        </div>
-
-        <!-- Quick Login Buttons for Testing -->
-        <div class="mt-6 text-center text-xs text-gray-500">
-            <p>Quick Login for Testing:</p>
-            <div class="flex gap-2 mt-2 justify-center">
-                <button @click="quickLogin('jeff')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Jeff</button>
-                <button @click="quickLogin('anna')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Anna</button>
-                <button @click="quickLogin('les')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700">Les</button>
-            </div>
         </div>
     </div>
 
@@ -144,6 +127,13 @@
                 success: '',
 
                 async init() {
+                    // Check if coming from email confirmation
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('confirmed') === 'true') {
+                        this.success = '✅ Email confirmed! You can now sign in with your password.';
+                        this.mode = 'login';
+                    }
+                    
                     // Check if already logged in
                     const { data: { session } } = await supabase.auth.getSession();
                     if (session) {
@@ -185,10 +175,15 @@
 
                             if (error) throw error;
 
-                            // For development, auto-confirm and sign in
+                            // Check if email confirmation is required
                             if (data.user && !data.user.confirmed_at) {
-                                this.success = 'Account created! You can now sign in.';
-                                // Auto sign in after signup for development
+                                // Email confirmation required
+                                this.success = '✅ Account created! Please check your email to confirm your account.';
+                                this.showEmailNotification = true;
+                                // Don't auto sign in - wait for email confirmation
+                            } else if (data.user && data.user.confirmed_at) {
+                                // Email already confirmed (shouldn't happen but handle it)
+                                this.success = 'Account created and confirmed! Signing you in...';
                                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
                                     email: this.email,
                                     password: this.password
@@ -211,28 +206,6 @@
                     } finally {
                         this.loading = false;
                     }
-                },
-
-                async quickLogin(user) {
-                    // Pre-fill credentials for testing
-                    const testUsers = {
-                        jeff: { email: 'jeff@legacy.com', password: 'legacy123' },
-                        anna: { email: 'anna@legacy.com', password: 'legacy123' },
-                        les: { email: 'les@legacy.com', password: 'legacy123' }
-                    };
-
-                    if (testUsers[user]) {
-                        this.mode = 'login';
-                        this.email = testUsers[user].email;
-                        this.password = testUsers[user].password;
-                        this.handleAuth();
-                    }
-                },
-
-                loginAsDemo() {
-                    // Set demo mode flag and redirect
-                    localStorage.setItem('demo_mode', 'true');
-                    window.location.href = '/index.html';
                 }
             }
         }

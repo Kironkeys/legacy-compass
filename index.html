@@ -29,7 +29,8 @@
     <!-- Mapbox Marker Clustering -->
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-client.js"></script>
+    <!-- Removed supabase-client.js as it conflicts with inline initialization -->
+    <script src="js/master-database.js"></script>
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
@@ -219,8 +220,19 @@
         }
     </style>
 </head>
-<body class="bg-black text-white">
-    <div x-data="legacyApp()" x-init="init()" class="app-container flex flex-col">
+<body class="bg-black text-white" x-data="legacyApp()" x-init="init()">
+    <!-- Loading Screen - Shows while checking authentication -->
+    <div id="auth-check-loader" class="fixed inset-0 bg-black z-[9999] flex items-center justify-center">
+        <div class="text-center">
+            <div class="mb-4">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+            </div>
+            <p class="text-gray-400" id="loading-message">Loading application...</p>
+            <p class="text-gray-500 text-sm mt-2" id="loading-submessage"></p>
+        </div>
+    </div>
+    
+    <div class="app-container flex flex-col" id="main-app" style="display: none;">
         
         <!-- Header - Always visible but minimal when Details open -->
         <div class="bg-gray-900 border-b border-orange-500 px-2 py-1 flex-shrink-0 fixed top-0 left-0 right-0 z-[60]">
@@ -228,9 +240,34 @@
                 <div class="flex items-center gap-2">
                     <div class="w-2 h-2 bg-orange-500 rounded-full"></div>
                     <span class="text-orange-500 font-bold text-sm">Legacy Compass</span>
+                    
+                    <!-- Farm Selector -->
+                    <template x-if="currentUser && userFarms">
+                        <div class="flex items-center gap-1 ml-2">
+                            <select 
+                                @change="switchFarm($event.target.value)"
+                                class="text-xs bg-gray-800 text-white px-2 py-1 rounded border border-gray-700"
+                            >
+                                <option value="">Select Farm</option>
+                                <template x-for="farm in userFarms" :key="farm.id">
+                                    <option 
+                                        :value="farm.id" 
+                                        :selected="window.MasterDatabase.currentFarm && farm.id === window.MasterDatabase.currentFarm.id"
+                                        x-text="farm.farm_name"
+                                    ></option>
+                                </template>
+                            </select>
+                            <button 
+                                @click="createNewFarm()"
+                                class="text-xs bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded"
+                            >
+                                + New
+                            </button>
+                        </div>
+                    </template>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-gray-400 text-xs" x-text="currentUser ? currentUser.email : 'Demo Mode'"></span>
+                    <span class="text-gray-400 text-xs" x-text="currentUser ? currentUser.email : ''"></span>
                     <button @click="logout()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">
                         Logout
                     </button>
@@ -273,6 +310,11 @@
                         <button @click="searchAddress()" 
                                 class="bg-orange-500 hover:bg-orange-400 text-black px-4 py-2 rounded font-bold text-sm">
                             Go
+                        </button>
+                        <button @click="searchMasterDatabase()" 
+                                class="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded font-bold text-sm"
+                                x-show="currentUser">
+                            + Add
                         </button>
                     </div>
                     
@@ -772,7 +814,7 @@
                 // Configuration
                 MAPBOX_TOKEN: 'pk.eyJ1IjoibGVnYWN5Y29tcGFzcyIsImEiOiJjbWV5MTNkMDAwdGR2Mm1vZTdtNmo4Nm5mIn0.wnWv7lPl2HNZNI8hmUvb1A',
                 SUPABASE_URL: 'https://kfomddpbpsaplyucodli.supabase.co',
-                SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmb21kZHBicHNhcGx5dWNvZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcxODc2MDAsImV4cCI6MjA0Mjc2MzYwMH0.DLWkTZ-SErpE0doFHMZyUbcFq6TpkLYQSwao8HQML_0',
+                SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmb21kZHBicHNhcGx5dWNvZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzE2MDMsImV4cCI6MjA3MjIwNzYwM30.ETQMg3cVef_wrMRy7eMoI4RkHT6bRHobPPRZf2GYrsY',
                 
                 // App State
                 initialized: false,
@@ -784,6 +826,7 @@
                 hotList: [],
                 loading: false,
                 currentFarmName: '',
+                userFarms: [], // Make farms reactive for Alpine
                 newPropertyNote: '',
                 propertyNotes: {},
                 currentUser: null,
@@ -847,44 +890,7 @@
                     avgEquity: '0%'
                 },
                 
-                async init() {
-                    console.log('Initializing Legacy Compass...');
-                    
-                    // For development, always use demo mode
-                    localStorage.setItem('demo_mode', 'true');
-                    console.log('🎭 Running in demo mode (development)');
-                    
-                    // Wait for DOM to be ready
-                    await this.$nextTick();
-                    
-                    // Initialize map with a small delay to ensure container is ready
-                    setTimeout(() => {
-                        this.initMap();
-                        this.initGPS();
-                    }, 100);
-                    
-                    // Load saved property notes
-                    this.propertyNotes = JSON.parse(localStorage.getItem('property_notes') || '{}');
-                    
-                    // Check for saved farm in localStorage (for demo mode)
-                    const savedFarm = localStorage.getItem('legacy_compass_farm');
-                    if (savedFarm) {
-                        try {
-                            const farmData = JSON.parse(savedFarm);
-                            this.properties = farmData.properties || [];
-                            this.currentFarmName = farmData.name || 'Saved Farm';
-                            this.filteredProperties = [...this.properties];
-                            this.updatePagination();
-                            this.addMapMarkers();
-                            console.log(`✅ Loaded saved farm: ${this.currentFarmName}`);
-                        } catch (e) {
-                            console.log('No saved farm found');
-                        }
-                    }
-                    
-                    this.loading = false;
-                    console.log('✅ Legacy Compass ready');
-                },
+                // Removed duplicate init() function - the real init is further down in the file
                 
                 initGPS() {
                     if ('geolocation' in navigator) {
@@ -1118,20 +1124,83 @@
                     
                     console.log('🚀 Initializing Legacy Compass...');
                     
-                    // Initialize Supabase
-                    this.supabase = supabase.createClient(this.SUPABASE_URL, this.SUPABASE_ANON_KEY);
+                    // Wait for Supabase to load
+                    if (typeof window.supabase === 'undefined') {
+                        console.log('Waiting for Supabase library to load...');
+                        document.getElementById('loading-message').textContent = 'Loading application...';
+                        document.getElementById('loading-submessage').textContent = 'Slow network detected - this may take a moment...';
+                        this.initialized = false; // Reset flag to allow retry
+                        setTimeout(() => this.init(), 1000); // Wait 1 second and retry
+                        return;
+                    }
                     
-                    // Check for existing session
-                    const { data: { session } } = await this.supabase.auth.getSession();
-                    if (session) {
-                        this.currentUser = session.user;
-                        console.log('👤 User logged in:', this.currentUser.email);
-                        
-                        // Load user data from cloud
-                        await this.loadUserData();
-                    } else {
-                        // No user logged in, try loading from localStorage
-                        this.loadFromLocalStorage();
+                    // Supabase loaded, update message
+                    document.getElementById('loading-message').textContent = 'Checking authentication...';
+                    document.getElementById('loading-submessage').textContent = '';
+                    
+                    // Initialize Supabase
+                    this.supabase = window.supabase.createClient(this.SUPABASE_URL, this.SUPABASE_ANON_KEY);
+                    
+                    // SECURITY FIX: Validate session with server, not just localStorage
+                    try {
+                        const { data: { session } } = await this.supabase.auth.getSession();
+                        console.log('Session check:', session ? 'Session found' : 'No session');
+                        if (session) {
+                            console.log('Session user:', session.user?.email);
+                            // Verify session is still valid with the server
+                            const { data: { user }, error } = await this.supabase.auth.getUser();
+                            console.log('getUser result:', { user: user?.email, error });
+                            
+                            if (error || !user) {
+                                // Session invalid - user deleted or token expired
+                                console.warn('⚠️ Invalid session detected, redirecting to login...');
+                                console.error('getUser error details:', error);
+                                try {
+                                    await this.supabase.auth.signOut();
+                                } catch (signOutError) {
+                                    console.log('SignOut error (expected for invalid sessions):', signOutError);
+                                }
+                                // Hide loader before redirect
+                                document.getElementById('auth-check-loader').style.display = 'none';
+                                window.location.href = '/login.html';
+                                return;
+                            } else {
+                                // Valid session
+                                this.currentUser = user;
+                                console.log('👤 User validated:', this.currentUser.email);
+                                
+                                // Hide loader and show app
+                                document.getElementById('auth-check-loader').style.display = 'none';
+                                document.getElementById('main-app').style.display = 'flex';
+                                
+                                // Load user data from cloud
+                                await this.loadUserData();
+                                
+                                // Initialize map after showing app
+                                setTimeout(() => {
+                                    this.initializeMapAfterAuth();
+                                }, 500);
+                            }
+                        } else {
+                            // No session - redirect to login page
+                            console.log('🔒 No user session, redirecting to login...');
+                            // Hide loader before redirect
+                            document.getElementById('auth-check-loader').style.display = 'none';
+                            window.location.href = '/login.html';
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Session validation error:', error);
+                        // Clear invalid session and redirect to login
+                        try {
+                            await this.supabase.auth.signOut();
+                        } catch (signOutError) {
+                            console.log('SignOut error (expected for invalid sessions):', signOutError);
+                        }
+                        // Hide loader before redirect
+                        document.getElementById('auth-check-loader').style.display = 'none';
+                        window.location.href = '/login.html';
+                        return;
                     }
                     
                     // Listen for auth changes
@@ -1142,6 +1211,27 @@
                             await this.loadUserData();
                         }
                     });
+                    
+                    // Periodic session validation (every 5 minutes)
+                    setInterval(async () => {
+                        if (this.currentUser) {
+                            const { data: { user }, error } = await this.supabase.auth.getUser();
+                            if (error || !user) {
+                                console.warn('⚠️ Session expired or user deleted');
+                                try {
+                                    await this.supabase.auth.signOut();
+                                } catch (signOutError) {
+                                    console.log('SignOut error during periodic check:', signOutError);
+                                }
+                                this.currentUser = null;
+                                window.location.reload(); // Reload to clear state
+                            }
+                        }
+                    }, 5 * 60 * 1000); // 5 minutes
+                },
+                
+                initializeMapAfterAuth() {
+                    console.log('🗺️ Initializing map after authentication...');
                     
                     // Detect iOS/Safari for special handling
                     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -2375,6 +2465,120 @@
                     localStorage.removeItem('legacy_compass_farm');
                     window.location.href = '/login.html';
                 },
+                
+                // Farm Management Functions
+                async switchFarm(farmId) {
+                    if (!farmId || !this.supabase) return;
+                    
+                    // Find the selected farm
+                    const farm = window.MasterDatabase.userFarms.find(f => f.id === farmId);
+                    if (!farm) return;
+                    
+                    window.MasterDatabase.currentFarm = farm;
+                    this.currentFarmName = farm.farm_name;
+                    
+                    // Load properties from new farm
+                    const properties = await window.MasterDatabase.loadFarmProperties(this.supabase, farmId);
+                    this.properties = properties;
+                    this.filteredProperties = [...properties];
+                    
+                    // Clear and reload notes/hot list
+                    this.propertyNotes = {};
+                    this.hotList = [];
+                    properties.forEach(p => {
+                        if (p.privateNotes) {
+                            this.propertyNotes[p.apn] = p.privateNotes;
+                        }
+                        if (p.isHotList) {
+                            this.hotList.push(p);
+                        }
+                    });
+                    
+                    // Update UI
+                    this.updatePagination();
+                    this.addMapMarkers();
+                    this.calculateStats();
+                    
+                    console.log('✅ Switched to farm:', this.currentFarmName);
+                },
+                
+                async createNewFarm() {
+                    const farmName = prompt('Enter farm name:');
+                    if (!farmName || !this.supabase || !this.currentUser) return;
+                    
+                    const newFarm = await window.MasterDatabase.createFarm(
+                        this.supabase, 
+                        this.currentUser, 
+                        farmName, 
+                        false
+                    );
+                    
+                    if (newFarm) {
+                        // Reload farms list to update dropdown
+                        await window.MasterDatabase.loadUserFarms(this.supabase, this.currentUser);
+                        // Sync to reactive array for Alpine
+                        this.userFarms = window.MasterDatabase.userFarms || [];
+                        // Force Alpine to update the dropdown
+                        this.$nextTick(() => {
+                            // Switch to the new farm
+                            this.switchFarm(newFarm.id);
+                        });
+                        alert(`Created farm: ${farmName}`);
+                    }
+                },
+                
+                // Search master database and add properties to farm
+                async searchMasterDatabase() {
+                    if (!this.searchQuery || !this.supabase || !this.currentUser) {
+                        alert('Please enter a search term');
+                        return;
+                    }
+                    
+                    if (!window.MasterDatabase.currentFarm) {
+                        alert('Please select or create a farm first');
+                        return;
+                    }
+                    
+                    // Search the master database
+                    const results = await window.MasterDatabase.searchProperties(
+                        this.supabase,
+                        this.searchQuery,
+                        50
+                    );
+                    
+                    if (results.length === 0) {
+                        alert(`No properties found for "${this.searchQuery}"`);
+                        return;
+                    }
+                    
+                    // Show results and let user select
+                    const message = `Found ${results.length} properties:\n\n` +
+                        results.slice(0, 5).map((p, i) => 
+                            `${i+1}. ${p.address}\n   Owner: ${p.owner || 'Unknown'}\n   APN: ${p.apn}`
+                        ).join('\n\n') +
+                        (results.length > 5 ? `\n\n... and ${results.length - 5} more` : '') +
+                        '\n\nAdd all to farm?';
+                    
+                    if (confirm(message)) {
+                        // Add all properties to current farm
+                        let added = 0;
+                        for (const prop of results) {
+                            const result = await window.MasterDatabase.addPropertyToFarm(
+                                this.supabase,
+                                this.currentUser,
+                                window.MasterDatabase.currentFarm.id,
+                                prop.apn,
+                                `Added from search: ${this.searchQuery}`
+                            );
+                            if (result) added++;
+                        }
+                        
+                        alert(`Added ${added} properties to ${this.currentFarmName}`);
+                        
+                        // Reload farm properties
+                        await this.switchFarm(window.MasterDatabase.currentFarm.id);
+                    }
+                },
 
                 // Save all data to localStorage and Supabase
                 async saveToLocalStorage() {
@@ -2459,61 +2663,48 @@
                     if (!this.supabase || !this.currentUser) return;
                     
                     try {
-                        // Load user's properties from Supabase
-                        const { data, error } = await this.supabase
-                            .from('user_properties')
-                            .select('*')
-                            .eq('user_id', this.currentUser.id);
+                        // Initialize master database
+                        await window.MasterDatabase.initialize(this.supabase, this.currentUser);
                         
-                        if (!error && data && data.length > 0) {
-                            console.log(`✅ Loading ${data.length} properties from cloud`);
+                        // Sync farms to reactive array
+                        this.userFarms = window.MasterDatabase.userFarms || [];
+                        
+                        // Load properties from current farm
+                        if (window.MasterDatabase.currentFarm) {
+                            this.currentFarmName = window.MasterDatabase.currentFarm.farm_name;
+                            const farmProperties = await window.MasterDatabase.loadFarmProperties(
+                                this.supabase, 
+                                window.MasterDatabase.currentFarm.id
+                            );
                             
-                            // Convert Supabase data to our format
-                            this.properties = data.map(p => ({
-                                id: p.property_id,
-                                address: p.property_address,
-                                owner: p.owner_name,
-                                phone: p.phone,
-                                email: p.email,
-                                notes: p.notes,
-                                tags: p.tags || [],
-                                lat: p.latitude,
-                                lng: p.longitude,
-                                equity: p.equity || 0,
-                                absentee: p.is_absentee || false,
-                                mailingAddress: p.mailing_address,
-                                purchasePrice: p.purchase_price,
-                                purchaseDate: p.purchase_date
-                            }));
+                            console.log(`✅ Loading ${farmProperties.length} properties from farm: ${this.currentFarmName}`);
                             
-                            // Restore notes
-                            data.forEach(p => {
-                                if (p.notes) {
-                                    this.propertyNotes[p.property_id] = p.notes;
+                            // Set properties
+                            this.properties = farmProperties;
+                            
+                            // Restore notes and hot list
+                            farmProperties.forEach(p => {
+                                if (p.privateNotes) {
+                                    this.propertyNotes[p.apn] = p.privateNotes;
+                                }
+                                if (p.isHotList) {
+                                    this.hotList.push(p);
                                 }
                             });
                             
-                            // Restore hot list
-                            this.hotList = this.properties.filter(p => 
-                                data.find(d => d.property_id === p.id && d.is_hot)
-                            );
-                            
-                            // Get farm name from first property
-                            if (data[0].farm_name) {
-                                this.currentFarmName = data[0].farm_name;
-                            }
-                            
+                            // Update filtered properties and pagination
                             this.filteredProperties = [...this.properties];
                             this.updatePagination();
                             this.addMapMarkers();
                             this.calculateStats();
                         } else {
-                            // No cloud data, try localStorage
-                            this.loadFromLocalStorage();
+                            // No cloud data - user has no farms yet
+                            console.log('No farms found for user');
+                            this.properties = [];
                         }
                     } catch (error) {
                         console.error('Error loading user data:', error);
-                        this.loadFromLocalStorage();
+                        this.properties = [];
                     }
                 },
 
@@ -2730,17 +2921,25 @@
                                 // Save farm name
                                 this.currentFarmName = file.name.replace('.csv', '').replace(/_/g, ' ');
                                 
-                                // Save to localStorage for persistence
-                                try {
-                                    const farmData = {
-                                        name: this.currentFarmName,
-                                        properties: parsed.slice(0, 2000), // Save first 2000 for performance
-                                        savedAt: new Date().toISOString()
-                                    };
-                                    localStorage.setItem('legacy_compass_farm', JSON.stringify(farmData));
-                                    console.log('✅ Farm saved to browser storage');
-                                } catch (e) {
-                                    console.log('Could not save to localStorage:', e);
+                                // Save to Supabase cloud database
+                                if (this.supabase && this.currentUser && window.MasterDatabase.currentFarm) {
+                                    console.log(`📤 Saving ${parsed.length} properties to cloud...`);
+                                    
+                                    // Save properties in batches to Supabase
+                                    const batchSize = 100;
+                                    for (let i = 0; i < parsed.length; i += batchSize) {
+                                        const batch = parsed.slice(i, i + batchSize);
+                                        const saved = await window.MasterDatabase.savePropertiesToFarm(
+                                            this.supabase,
+                                            this.currentUser,
+                                            window.MasterDatabase.currentFarm.id,
+                                            batch
+                                        );
+                                        console.log(`Saved batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(parsed.length/batchSize)}`);
+                                    }
+                                    console.log('✅ All properties saved to cloud database');
+                                } else {
+                                    console.log('⚠️ Not logged in or no farm selected - data only saved locally');
                                 }
                                 
                                 // Ensure all properties have coordinates IMMEDIATELY

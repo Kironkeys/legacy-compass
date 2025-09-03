@@ -1,0 +1,60 @@
+IMPORT INSTRUCTIONS
+==================
+
+Total files: 49
+Properties per file: 1000
+Total properties: 48555
+
+Run each file in order:
+
+  1. chunk_001.sql
+  2. chunk_002.sql
+  3. chunk_003.sql
+  4. chunk_004.sql
+  5. chunk_005.sql
+  6. chunk_006.sql
+  7. chunk_007.sql
+  8. chunk_008.sql
+  9. chunk_009.sql
+ 10. chunk_010.sql
+ 11. chunk_011.sql
+ 12. chunk_012.sql
+ 13. chunk_013.sql
+ 14. chunk_014.sql
+ 15. chunk_015.sql
+ 16. chunk_016.sql
+ 17. chunk_017.sql
+ 18. chunk_018.sql
+ 19. chunk_019.sql
+ 20. chunk_020.sql
+ 21. chunk_021.sql
+ 22. chunk_022.sql
+ 23. chunk_023.sql
+ 24. chunk_024.sql
+ 25. chunk_025.sql
+ 26. chunk_026.sql
+ 27. chunk_027.sql
+ 28. chunk_028.sql
+ 29. chunk_029.sql
+ 30. chunk_030.sql
+ 31. chunk_031.sql
+ 32. chunk_032.sql
+ 33. chunk_033.sql
+ 34. chunk_034.sql
+ 35. chunk_035.sql
+ 36. chunk_036.sql
+ 37. chunk_037.sql
+ 38. chunk_038.sql
+ 39. chunk_039.sql
+ 40. chunk_040.sql
+ 41. chunk_041.sql
+ 42. chunk_042.sql
+ 43. chunk_043.sql
+ 44. chunk_044.sql
+ 45. chunk_045.sql
+ 46. chunk_046.sql
+ 47. chunk_047.sql
+ 48. chunk_048.sql
+ 49. chunk_049.sql
+
+Each file is small enough for Supabase!
