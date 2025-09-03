@@ -750,8 +750,10 @@
     <script>
         function legacyApp() {
             return {
-                // TomTom API Key
+                // Configuration
                 MAPBOX_TOKEN: 'pk.eyJ1IjoibGVnYWN5Y29tcGFzcyIsImEiOiJjbWV5MTNkMDAwdGR2Mm1vZTdtNmo4Nm5mIn0.wnWv7lPl2HNZNI8hmUvb1A',
+                SUPABASE_URL: 'https://kfomddpbpsaplyucodli.supabase.co',
+                SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmb21kZHBicHNhcGx5dWNvZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcxODc2MDAsImV4cCI6MjA0Mjc2MzYwMH0.DLWkTZ-SErpE0doFHMZyUbcFq6TpkLYQSwao8HQML_0',
                 
                 // App State
                 map: null,
@@ -1084,6 +1086,25 @@
                             zoom: 15
                         });
                     }
+                },
+                
+                async init() {
+                    // Initialize Supabase
+                    this.supabase = supabase.createClient(this.SUPABASE_URL, this.SUPABASE_ANON_KEY);
+                    
+                    // Check for existing session
+                    const { data: { session } } = await this.supabase.auth.getSession();
+                    if (session) {
+                        this.currentUser = session.user;
+                    }
+                    
+                    // Listen for auth changes
+                    this.supabase.auth.onAuthStateChange((event, session) => {
+                        this.currentUser = session ? session.user : null;
+                    });
+                    
+                    // Initialize the map
+                    this.initMap();
                 },
                 
                 initMap() {

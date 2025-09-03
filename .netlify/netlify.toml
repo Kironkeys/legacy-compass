@@ -7,9 +7,8 @@ headers = []
 [functions."*"]
 
 [build]
-publish = "/Users/kiron/Desktop/lattest/current 2/legacy-compass-complete-working"
+publish = "/Users/kiron/Desktop/legacy compass/legacy-compass-complete-working 4"
 publishOrigin = "config"
-commandOrigin = "ui"
 
 [build.environment]
 VITE_SUPABASE_URL = "https://kfomddpbpsaplyucodli.supabase.co"
