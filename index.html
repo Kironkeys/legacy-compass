@@ -762,7 +762,7 @@
                 selectedProperty: null,
                 detailsTab: 'overview',  // Add this for tab navigation
                 hotList: [],
-                loading: true,
+                loading: false,
                 currentFarmName: '',
                 newPropertyNote: '',
                 propertyNotes: {},
@@ -1108,18 +1108,35 @@
                 },
                 
                 initMap() {
-                    // Set Mapbox access token
-                    mapboxgl.accessToken = this.MAPBOX_TOKEN;
-                    
-                    // Initialize Mapbox GL JS
-                    this.map = new mapboxgl.Map({
-                        container: 'map',
-                        style: 'mapbox://styles/mapbox/streets-v12', // You can change to satellite-streets-v12
-                        center: [-122.0808, 37.6688], // Hayward, CA
-                        zoom: 15,
-                        pitch: 0, // Start flat, then animate to 3D
-                        bearing: 0
-                    });
+                    try {
+                        // Set Mapbox access token
+                        mapboxgl.accessToken = this.MAPBOX_TOKEN;
+                        
+                        // Initialize Mapbox GL JS
+                        this.map = new mapboxgl.Map({
+                            container: 'map',
+                            style: 'mapbox://styles/mapbox/streets-v12', // You can change to satellite-streets-v12
+                            center: [-122.0808, 37.6688], // Hayward, CA
+                            zoom: 15,
+                            pitch: 0, // Start flat, then animate to 3D
+                            bearing: 0
+                        });
+                        
+                        // Set loading to false once map is ready
+                        this.map.on('load', () => {
+                            console.log('✅ Map loaded successfully');
+                            this.loading = false;
+                        });
+                        
+                        // Handle map errors
+                        this.map.on('error', (e) => {
+                            console.error('❌ Map error:', e);
+                            this.loading = false;
+                        });
+                    } catch (error) {
+                        console.error('❌ Failed to initialize map:', error);
+                        this.loading = false;
+                    }
                     
                     // Add navigation controls
                     this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
