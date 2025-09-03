@@ -1124,6 +1124,12 @@
                 },
                 
                 initMap() {
+                    // Check if map already exists
+                    if (this.map) {
+                        console.log('Map already initialized, skipping...');
+                        return;
+                    }
+                    
                     try {
                         // Check if mapboxgl is loaded
                         if (typeof mapboxgl === 'undefined') {
@@ -2108,6 +2114,12 @@
                 },
                 
                 searchAddress() {
+                    // Debounce to prevent duplicate calls
+                    if (this.searchInProgress) {
+                        console.log('Search already in progress, skipping...');
+                        return;
+                    }
+                    
                     if (!this.searchQuery) {
                         console.log('No search query entered');
                         return;
@@ -2118,6 +2130,7 @@
                         return;
                     }
                     
+                    this.searchInProgress = true;
                     console.log('🔍 Searching for:', this.searchQuery);
                     
                     // Check if searching for a tag
@@ -2125,6 +2138,7 @@
                         const tagToSearch = this.searchQuery.substring(1).toLowerCase();
                         this.propertySearch = this.searchQuery;
                         this.filterProperties();
+                        this.searchInProgress = false;
                         return;
                     }
                     
@@ -2148,14 +2162,25 @@
                                 const [lng, lat] = feature.center;
                                 console.log(`📍 Found location: ${feature.place_name} at ${lat}, ${lng}`);
                                 
-                                // Fly to the location
-                                this.map.flyTo({
-                                    center: [lng, lat],
-                                    zoom: 16,
-                                    pitch: 45,
-                                    bearing: 0,
-                                    duration: 2000
-                                });
+                                // Ensure map is ready and fly to the location
+                                if (!this.map) {
+                                    console.error('Map not initialized for flyTo');
+                                    return;
+                                }
+                                
+                                console.log('Flying to location...');
+                                try {
+                                    this.map.flyTo({
+                                        center: [lng, lat],
+                                        zoom: 16,
+                                        pitch: 45,
+                                        bearing: 0,
+                                        duration: 2000
+                                    });
+                                    console.log('FlyTo command sent');
+                                } catch (error) {
+                                    console.error('FlyTo error:', error);
+                                }
                                 
                                 // Add a temporary marker for the searched location
                                 const el = document.createElement('div');
@@ -2176,15 +2201,18 @@
                                 // Clear search after successful search
                                 setTimeout(() => {
                                     this.searchQuery = '';
+                                    this.searchInProgress = false;
                                 }, 3000);
                             } else {
                                 console.log('No results found for:', this.searchQuery);
                                 alert(`No results found for "${this.searchQuery}". Try:\n- A full address (123 Main St, City, State)\n- A city name\n- A landmark or place name`);
+                                this.searchInProgress = false;
                             }
                         })
                         .catch(error => {
                             console.error('Search error:', error);
                             alert('Error searching for location. Please check your internet connection.');
+                            this.searchInProgress = false;
                         });
                 },
                 
