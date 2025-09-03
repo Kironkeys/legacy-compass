@@ -119,6 +119,7 @@
             background: #000;
             padding: 0;
             margin: 0;
+            -webkit-text-size-adjust: 100%; /* Prevent font size adjustments in Safari */
         }
         
         /* Container fills viewport properly */
@@ -126,6 +127,26 @@
             height: 100vh;
             height: 100dvh;
             height: -webkit-fill-available;
+        }
+        
+        /* Fix for Safari map rendering */
+        #map {
+            position: absolute !important;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100% !important;
+            height: 100% !important;
+            -webkit-transform: translateZ(0); /* Force GPU acceleration */
+            transform: translateZ(0);
+        }
+        
+        /* Ensure map canvas renders properly in Safari */
+        .mapboxgl-canvas {
+            position: absolute !important;
+            width: 100% !important;
+            height: 100% !important;
         }
         
         /* Custom scrollbar for properties */
@@ -1104,23 +1125,66 @@
                     const { data: { session } } = await this.supabase.auth.getSession();
                     if (session) {
                         this.currentUser = session.user;
+                        console.log('👤 User logged in:', this.currentUser.email);
+                        
+                        // Load user data from cloud
+                        await this.loadUserData();
+                    } else {
+                        // No user logged in, try loading from localStorage
+                        this.loadFromLocalStorage();
                     }
                     
                     // Listen for auth changes
-                    this.supabase.auth.onAuthStateChange((event, session) => {
+                    this.supabase.auth.onAuthStateChange(async (event, session) => {
                         this.currentUser = session ? session.user : null;
+                        if (session && event === 'SIGNED_IN') {
+                            // Load user data when they sign in
+                            await this.loadUserData();
+                        }
                     });
                     
-                    // Wait for DOM to be ready
+                    // Detect iOS/Safari for special handling
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                    
+                    // Wait for DOM to be ready (longer delay for iOS/Safari)
+                    const initDelay = (isIOS || isSafari) ? 800 : 100;
+                    
                     setTimeout(() => {
                         console.log('🗺️ Initializing map...');
+                        console.log('Platform - iOS:', isIOS, 'Safari:', isSafari);
+                        
                         const mapContainer = document.getElementById('map');
                         console.log('Map container found:', !!mapContainer);
+                        
                         if (mapContainer) {
+                            // Force explicit dimensions on Safari/iOS
+                            if (isIOS || isSafari) {
+                                // Get parent dimensions
+                                const parent = mapContainer.parentElement;
+                                const rect = parent.getBoundingClientRect();
+                                
+                                // Apply explicit dimensions
+                                mapContainer.style.width = rect.width + 'px';
+                                mapContainer.style.height = rect.height + 'px';
+                                
+                                // Force GPU acceleration
+                                mapContainer.style.webkitTransform = 'translateZ(0)';
+                                mapContainer.style.transform = 'translateZ(0)';
+                                
+                                console.log('Safari/iOS fix applied - dimensions:', rect.width, 'x', rect.height);
+                            }
+                            
                             console.log('Map container dimensions:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+                            
+                            // Force reflow on Safari
+                            if (isSafari) {
+                                mapContainer.offsetHeight; // Force reflow
+                            }
                         }
+                        
                         this.initMap();
-                    }, 100);
+                    }, initDelay);
                 },
                 
                 initMap() {
@@ -1142,27 +1206,56 @@
                         console.log('Mapbox token:', this.MAPBOX_TOKEN ? 'Token present' : 'NO TOKEN!');
                         mapboxgl.accessToken = this.MAPBOX_TOKEN;
                         
+                        // Check for WebGL support (Safari issue)
+                        if (!mapboxgl.supported()) {
+                            console.error('Your browser does not support Mapbox GL');
+                            alert('Your browser does not support Mapbox GL. Please try updating your browser.');
+                            return;
+                        }
+                        
                         console.log('Creating Mapbox map...');
-                        // Initialize Mapbox GL JS
+                        // Initialize Mapbox GL JS with Safari-specific fixes
                         this.map = new mapboxgl.Map({
                             container: 'map',
-                            style: 'mapbox://styles/mapbox/streets-v12', // You can change to satellite-streets-v12
+                            style: 'mapbox://styles/mapbox/streets-v12',
                             center: [-122.0808, 37.6688], // Hayward, CA
                             zoom: 15,
-                            pitch: 0, // Start flat, then animate to 3D
-                            bearing: 0
+                            pitch: 0,
+                            bearing: 0,
+                            // Safari-specific settings
+                            antialias: true,
+                            preserveDrawingBuffer: true,
+                            failIfMajorPerformanceCaveat: false,
+                            trackResize: true,
+                            refreshExpiredTiles: false
                         });
                         
                         // Set loading to false once map is ready
                         this.map.on('load', () => {
                             console.log('✅ Map loaded successfully');
                             this.loading = false;
+                            
+                            // Safari/iOS fix: Force resize after load
+                            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                            
+                            if (isIOS || isSafari) {
+                                setTimeout(() => {
+                                    this.map.resize();
+                                    console.log('Safari/iOS: Map resized after load');
+                                }, 200);
+                            }
                         });
                         
                         // Handle map errors
                         this.map.on('error', (e) => {
                             console.error('❌ Map error:', e);
                             this.loading = false;
+                            
+                            // Provide helpful message for Safari WebGL issues
+                            if (e.error && e.error.message && e.error.message.includes('WebGL')) {
+                                alert('Maps require WebGL. On iOS: Settings > Safari > Advanced > Experimental Features > Enable WebGL 2.0');
+                            }
                         });
                     } catch (error) {
                         console.error('❌ Failed to initialize map:', error);
@@ -2283,6 +2376,85 @@
                     window.location.href = '/login.html';
                 },
 
+                // Save all data to localStorage and Supabase
+                async saveToLocalStorage() {
+                    try {
+                        // Save to localStorage first (immediate)
+                        const farmData = {
+                            name: this.currentFarmName,
+                            properties: this.properties,
+                            propertyNotes: this.propertyNotes,
+                            hotList: this.hotList.map(p => p.id),
+                            savedAt: new Date().toISOString()
+                        };
+                        localStorage.setItem('legacy_compass_farm', JSON.stringify(farmData));
+                        
+                        // Save property tags separately
+                        const tagData = {};
+                        this.properties.forEach(p => {
+                            if (p.tags && p.tags.length > 0) {
+                                tagData[p.id] = p.tags;
+                            }
+                        });
+                        localStorage.setItem('propertyTags', JSON.stringify(tagData));
+                        localStorage.setItem('property_notes', JSON.stringify(this.propertyNotes));
+                        
+                        // Save to Supabase if authenticated
+                        if (this.supabase && this.currentUser) {
+                            await this.saveAllToSupabase();
+                        }
+                    } catch (error) {
+                        console.error('Error saving data:', error);
+                    }
+                },
+
+                async saveAllToSupabase() {
+                    if (!this.supabase || !this.currentUser || this.properties.length === 0) return;
+                    
+                    try {
+                        // Prepare all properties for batch insert
+                        const propertiesToSave = this.properties.map(p => ({
+                            user_id: this.currentUser.id,
+                            property_id: p.id,
+                            property_address: p.address,
+                            owner_name: p.owner,
+                            phone: p.phone,
+                            email: p.email,
+                            notes: this.propertyNotes[p.id] || p.notes || null,
+                            tags: p.tags || [],
+                            latitude: p.lat,
+                            longitude: p.lng,
+                            equity: p.equity || 0,
+                            is_absentee: p.absentee || false,
+                            is_hot: this.hotList.some(h => h.id === p.id),
+                            mailing_address: p.mailingAddress,
+                            purchase_price: p.purchasePrice,
+                            purchase_date: p.purchaseDate,
+                            farm_name: this.currentFarmName,
+                            updated_at: new Date().toISOString()
+                        }));
+                        
+                        // Delete existing properties for this user first
+                        await this.supabase
+                            .from('user_properties')
+                            .delete()
+                            .eq('user_id', this.currentUser.id);
+                        
+                        // Insert all properties
+                        const { error } = await this.supabase
+                            .from('user_properties')
+                            .insert(propertiesToSave);
+                        
+                        if (error) {
+                            console.error('Error saving to Supabase:', error);
+                        } else {
+                            console.log('✅ All properties saved to cloud');
+                        }
+                    } catch (error) {
+                        console.error('Error saving to cloud:', error);
+                    }
+                },
+
                 async loadUserData() {
                     if (!this.supabase || !this.currentUser) return;
                     
@@ -2293,8 +2465,9 @@
                             .select('*')
                             .eq('user_id', this.currentUser.id);
                         
-                        if (!error && data) {
-                            console.log(`Loaded ${data.length} properties from cloud`);
+                        if (!error && data && data.length > 0) {
+                            console.log(`✅ Loading ${data.length} properties from cloud`);
+                            
                             // Convert Supabase data to our format
                             this.properties = data.map(p => ({
                                 id: p.property_id,
@@ -2312,48 +2485,76 @@
                                 purchasePrice: p.purchase_price,
                                 purchaseDate: p.purchase_date
                             }));
+                            
+                            // Restore notes
+                            data.forEach(p => {
+                                if (p.notes) {
+                                    this.propertyNotes[p.property_id] = p.notes;
+                                }
+                            });
+                            
+                            // Restore hot list
+                            this.hotList = this.properties.filter(p => 
+                                data.find(d => d.property_id === p.id && d.is_hot)
+                            );
+                            
+                            // Get farm name from first property
+                            if (data[0].farm_name) {
+                                this.currentFarmName = data[0].farm_name;
+                            }
+                            
                             this.filteredProperties = [...this.properties];
                             this.updatePagination();
                             this.addMapMarkers();
+                            this.calculateStats();
+                        } else {
+                            // No cloud data, try localStorage
+                            this.loadFromLocalStorage();
                         }
                     } catch (error) {
                         console.error('Error loading user data:', error);
+                        this.loadFromLocalStorage();
                     }
                 },
 
-                async savePropertyToCloud(property) {
-                    if (!this.supabase || !this.currentUser) return;
-                    
-                    try {
-                        const { data, error } = await this.supabase
-                            .from('user_properties')
-                            .upsert({
-                                user_id: this.currentUser.id,
-                                property_id: property.id,
-                                property_address: property.address,
-                                owner_name: property.owner,
-                                phone: property.phone,
-                                email: property.email,
-                                notes: property.notes,
-                                tags: property.tags,
-                                latitude: property.lat,
-                                longitude: property.lng,
-                                equity: property.equity,
-                                is_absentee: property.absentee,
-                                mailing_address: property.mailingAddress,
-                                purchase_price: property.purchasePrice,
-                                purchase_date: property.purchaseDate
-                            }, {
-                                onConflict: 'user_id,property_id'
-                            });
-                        
-                        if (error) {
-                            console.error('Error saving to cloud:', error);
-                        } else {
-                            console.log('Property saved to cloud');
+                loadFromLocalStorage() {
+                    const savedFarm = localStorage.getItem('legacy_compass_farm');
+                    if (savedFarm) {
+                        try {
+                            const farmData = JSON.parse(savedFarm);
+                            this.properties = farmData.properties || [];
+                            this.currentFarmName = farmData.name || 'Saved Farm';
+                            
+                            // Restore hot list
+                            const hotListIds = farmData.hotList || [];
+                            this.hotList = this.properties.filter(p => hotListIds.includes(p.id));
+                            
+                            // Load property notes
+                            const savedNotes = localStorage.getItem('property_notes');
+                            if (savedNotes) {
+                                this.propertyNotes = JSON.parse(savedNotes);
+                            }
+                            
+                            // Load property tags
+                            const savedTags = localStorage.getItem('propertyTags');
+                            if (savedTags) {
+                                const tagData = JSON.parse(savedTags);
+                                this.properties.forEach(p => {
+                                    if (tagData[p.id]) {
+                                        p.tags = tagData[p.id];
+                                    }
+                                });
+                            }
+                            
+                            this.filteredProperties = [...this.properties];
+                            this.updatePagination();
+                            this.addMapMarkers();
+                            this.calculateStats();
+                            
+                            console.log('✅ Loaded farm from local storage');
+                        } catch (e) {
+                            console.error('Error loading from localStorage:', e);
                         }
-                    } catch (error) {
-                        console.error('Error saving property:', error);
                     }
                 },
 
