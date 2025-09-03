@@ -1089,6 +1089,8 @@
                 },
                 
                 async init() {
+                    console.log('🚀 Initializing Legacy Compass...');
+                    
                     // Initialize Supabase
                     this.supabase = supabase.createClient(this.SUPABASE_URL, this.SUPABASE_ANON_KEY);
                     
@@ -1103,15 +1105,32 @@
                         this.currentUser = session ? session.user : null;
                     });
                     
-                    // Initialize the map
-                    this.initMap();
+                    // Wait for DOM to be ready
+                    setTimeout(() => {
+                        console.log('🗺️ Initializing map...');
+                        const mapContainer = document.getElementById('map');
+                        console.log('Map container found:', !!mapContainer);
+                        if (mapContainer) {
+                            console.log('Map container dimensions:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+                        }
+                        this.initMap();
+                    }, 100);
                 },
                 
                 initMap() {
                     try {
+                        // Check if mapboxgl is loaded
+                        if (typeof mapboxgl === 'undefined') {
+                            console.error('❌ Mapbox GL JS is not loaded!');
+                            return;
+                        }
+                        console.log('✅ Mapbox GL JS is loaded');
+                        
                         // Set Mapbox access token
+                        console.log('Mapbox token:', this.MAPBOX_TOKEN ? 'Token present' : 'NO TOKEN!');
                         mapboxgl.accessToken = this.MAPBOX_TOKEN;
                         
+                        console.log('Creating Mapbox map...');
                         // Initialize Mapbox GL JS
                         this.map = new mapboxgl.Map({
                             container: 'map',
