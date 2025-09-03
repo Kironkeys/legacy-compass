@@ -95,7 +95,7 @@ window.MasterDatabase = {
                 .from('farm_properties')
                 .select(`
                     *,
-                    property:master_properties(*)
+                    master_properties!inner(*)
                 `)
                 .eq('farm_id', farmId)
                 .order('added_at', { ascending: false });
@@ -104,20 +104,29 @@ window.MasterDatabase = {
             
             // Flatten the response and add farm-specific data
             const properties = (data || []).map(item => ({
-                ...item.property,
+                ...item.master_properties,
                 farmPropertyId: item.id,
                 isHotList: item.is_hot_list,
                 privateNotes: item.private_notes,
                 lastVisited: item.last_visited,
                 visitCount: item.visit_count,
                 priority: item.priority,
-                // Add coordinates for map
-                lat: item.property.latitude,
-                lng: item.property.longitude,
-                address: item.property.property_address,
-                owner: item.property.owner_name,
-                absentee: item.property.is_absentee,
-                vacant: item.property.is_vacant
+                // Map the fields to match frontend expectations
+                id: item.master_properties.apn,
+                lat: item.master_properties.latitude,
+                lng: item.master_properties.longitude,
+                address: item.master_properties.property_address,
+                owner: item.master_properties.owner_name,
+                absentee: item.master_properties.is_absentee,
+                vacant: item.master_properties.is_vacant,
+                city: item.master_properties.city,
+                state: item.master_properties.state,
+                zip: item.master_properties.zip_code,
+                bedrooms: item.master_properties.bedrooms,
+                bathrooms: item.master_properties.bathrooms,
+                sqft: item.master_properties.square_feet,
+                yearBuilt: item.master_properties.year_built,
+                type: item.master_properties.property_type
             }));
             
             console.log('🏘️ Loaded', properties.length, 'properties from farm');
@@ -169,47 +178,58 @@ window.MasterDatabase = {
      */
     async savePropertiesToFarm(supabase, user, farmId, properties) {
         try {
-            // Prepare properties for insertion - only essential fields
-            const propsToInsert = properties.map(prop => {
-                // Create a clean data object with only essential extra fields
-                const cleanData = {
-                    city: prop.city,
-                    state: prop.state,
-                    zip: prop.zip,
-                    bedrooms: prop.bedrooms,
-                    bathrooms: prop.bathrooms,
-                    sqft: prop.sqft,
-                    yearBuilt: prop.yearBuilt,
-                    purchasePrice: prop.purchasePrice,
-                    purchaseDate: prop.purchaseDate
-                };
-                
-                return {
-                    farm_id: farmId,
-                    user_id: user.id,
-                    apn: prop.apn || prop.id || `${Date.now()}_${Math.random()}`,
-                    address: prop.address || prop.Address || '',
-                    owner: prop.owner || prop.Owner || '',
-                    lat: parseFloat(prop.lat) || parseFloat(prop.latitude) || null,
-                    lng: parseFloat(prop.lng) || parseFloat(prop.longitude) || null,
-                    equity: parseInt(prop.equity) || 0,
-                    type: prop.type || 'SFR',
-                    absentee: prop.absentee === true || prop.absentee === 'true',
-                    private_notes: prop.privateNotes || '',
-                    tags: prop.tags || [],
-                    is_hot_list: prop.isHotList || false,
-                    data: cleanData // Store only essential extra data
-                };
-            });
+            // First, insert properties into master_properties table
+            const masterProps = properties.map(prop => ({
+                apn: prop.apn || prop.id || `temp_${Date.now()}_${Math.random()}`,
+                property_address: prop.address || prop.Address || '',
+                owner_name: prop.owner || prop.Owner || '',
+                latitude: parseFloat(prop.lat) || parseFloat(prop.latitude) || null,
+                longitude: parseFloat(prop.lng) || parseFloat(prop.longitude) || null,
+                is_absentee: prop.absentee === true || prop.absentee === 'true' || prop.absentee === 'Absentee Owner',
+                city: prop.city || 'Hayward',
+                state: prop.state || 'CA',
+                zip_code: prop.zip || '',
+                bedrooms: parseInt(prop.bedrooms) || null,
+                bathrooms: parseFloat(prop.bathrooms) || null,
+                square_feet: parseInt(prop.sqft) || null,
+                year_built: parseInt(prop.yearBuilt) || null,
+                property_type: prop.type || 'SFR'
+            }));
 
-            // Insert in batches
+            // Insert into master_properties (skip duplicates)
+            const { error: masterError } = await supabase
+                .from('master_properties')
+                .upsert(masterProps, { 
+                    onConflict: 'apn',
+                    ignoreDuplicates: true 
+                });
+
+            if (masterError && masterError.code !== '23505') {
+                console.error('Error inserting master properties:', masterError);
+            }
+
+            // Now link them to the farm via farm_properties
+            const farmLinks = properties.map(prop => ({
+                farm_id: farmId,
+                user_id: user.id,
+                apn: prop.apn || prop.id || `temp_${Date.now()}_${Math.random()}`,
+                private_notes: prop.privateNotes || '',
+                is_hot_list: prop.isHotList || false,
+                priority: 0,
+                status: 'active'
+            }));
+
+            // Insert farm links
             const { data, error } = await supabase
                 .from('farm_properties')
-                .upsert(propsToInsert, { onConflict: 'apn,farm_id' });
+                .upsert(farmLinks, { 
+                    onConflict: 'farm_id,apn',
+                    ignoreDuplicates: true 
+                });
 
             if (error) throw error;
             
-            console.log(`✅ Saved ${propsToInsert.length} properties to farm`);
+            console.log(`✅ Saved ${farmLinks.length} properties to farm`);
             return true;
         } catch (error) {
             console.error('Error saving properties:', error);
