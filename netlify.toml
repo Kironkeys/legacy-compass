@@ -37,3 +37,12 @@
 [build.environment]
   VITE_SUPABASE_URL = "https://kfomddpbpsaplyucodli.supabase.co"
   VITE_MAPBOX_TOKEN = "pk.eyJ1IjoibGVnYWN5Y29tcGFzcyIsImEiOiJjbWV5MTNkMDAwdGR2Mm1vZTdtNmo4Nm5mIn0.wnWv7lPl2HNZNI8hmUvb1A"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.mapbox.com https://cdn.supabase.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com https://cdn.jsdelivr.net; img-src 'self' data: https: blob:; connect-src 'self' https://api.mapbox.com https://*.supabase.co https://*.tiles.mapbox.com wss://*.supabase.co"
