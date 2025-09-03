@@ -27,8 +27,6 @@
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js'></script>
     
     <!-- Mapbox Marker Clustering -->
-    <script src="https://unpkg.com/supercluster@8.0.1/dist/supercluster.min.js"></script>
-    
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-client.js"></script>
@@ -756,6 +754,7 @@
                 SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmb21kZHBicHNhcGx5dWNvZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcxODc2MDAsImV4cCI6MjA0Mjc2MzYwMH0.DLWkTZ-SErpE0doFHMZyUbcFq6TpkLYQSwao8HQML_0',
                 
                 // App State
+                initialized: false,
                 map: null,
                 properties: [],
                 filteredProperties: [],
@@ -1089,6 +1088,13 @@
                 },
                 
                 async init() {
+                    // Prevent double initialization
+                    if (this.initialized) {
+                        console.log('Already initialized, skipping...');
+                        return;
+                    }
+                    this.initialized = true;
+                    
                     console.log('🚀 Initializing Legacy Compass...');
                     
                     // Initialize Supabase
@@ -2123,7 +2129,8 @@
                     }
                     
                     // Otherwise search for address/location using Mapbox Geocoding
-                    const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(this.searchQuery)}.json?access_token=${mapboxgl.accessToken}`;
+                    // Add country bias for US and proximity to California
+                    const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(this.searchQuery)}.json?country=US&proximity=-122.0808,37.6688&access_token=${mapboxgl.accessToken}`;
                     console.log('Geocoding URL:', geocodeUrl.replace(mapboxgl.accessToken, 'TOKEN_HIDDEN'));
                     
                     fetch(geocodeUrl)
