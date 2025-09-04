@@ -13,6 +13,12 @@ Legacy Compass is a Progressive Web Application (PWA) designed as the "Bloomberg
 - **Tailwind CSS** - Utility-first CSS framework for responsive design
 - **Leaflet 1.9.4** - Alternative mapping library for lightweight deployments
 
+#### UI/UX Design Principles (Updated Sept 2025)
+- **Mobile-First Responsive Design** - Optimized for PWA on mobile devices
+- **Touch-Optimized Interface** - 50-60px touch targets following Apple HIG
+- **Professional Color Palette** - Navy/dark theme with orange accents
+- **No-Scroll Detail Views** - All content visible without scrolling on mobile
+
 #### Key Frontend Components
 
 ```javascript
@@ -30,13 +36,13 @@ class LegacyCompass {
 }
 ```
 
-#### Frontend File Structure
+#### Frontend File Structure (Updated Sept 2025)
 ```
 Legacy_Compass/
-├── index.html              # TomTom-based main app
-├── legacy_compass.html     # Leaflet-based alternative
+├── index.html              # Main PWA application (unified)
 ├── css/
-│   └── styles.css         # Main stylesheet
+│   ├── styles.css         # Main stylesheet
+│   └── tailwind/          # Tailwind utilities
 ├── js/
 │   ├── app.js             # Main application controller
 │   ├── auth.js            # Authentication module
@@ -46,8 +52,12 @@ Legacy_Compass/
 │   ├── voice-handler.js   # Voice notes functionality
 │   ├── smart-csv-loader.js # CSV import/parsing
 │   └── offline-map-manager.js # PWA offline support
-└── assets/
-    └── icons/             # PWA icons (72x72 to 512x512)
+├── assets/
+│   └── icons/             # PWA icons (72x72 to 512x512)
+└── architecture/          # System documentation
+    ├── CHANGELOG.md       # Version history
+    ├── SYSTEM_ARCHITECTURE.md # This file
+    └── IMPLEMENTATION_GUIDE.md # Setup instructions
 ```
 
 ### Backend Architecture
@@ -79,6 +89,70 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 ```
 
 ## Database Schema
+
+### Property Deduplication & Matching System
+
+#### Data Sources & Gold Mine Strategy
+The system combines multiple property data sources to create a comprehensive "gold mine" database:
+
+1. **County Records (Primary Source)**
+   - 48,555 Hayward properties from Alameda County Assessor
+   - Contains official property records with APNs
+   - Updated monthly via automated scripts
+   - Fields: APN, owner name, address, tax info, sale history
+
+2. **Title Company Data (Enrichment Layer)**  
+   - Additional ownership details and liens
+   - Chain of title information
+   - Matched via APN (Assessor Parcel Number)
+   - 99.2% successful match rate achieved
+
+3. **MLS/Realtor Data (Market Layer)**
+   - Current listings and recent sales
+   - Property photos and descriptions
+   - Matched by address + owner name fallback
+
+#### Deduplication Process
+```sql
+-- APN is the unique identifier preventing duplicates
+-- Each property can only exist once in master_properties
+CREATE TABLE master_properties (
+    apn TEXT PRIMARY KEY,  -- Unique constraint ensures no duplicates
+    -- ... other fields
+);
+
+-- Import process checks for existing APNs
+INSERT INTO master_properties (apn, property_address, ...)
+VALUES ($1, $2, ...)
+ON CONFLICT (apn) DO UPDATE SET
+    property_address = EXCLUDED.property_address,
+    last_updated = NOW()
+    -- Updates existing record instead of creating duplicate
+```
+
+#### Matching Algorithm
+1. **Primary Match: APN**
+   - Most reliable identifier
+   - Format: `XXX-XXXX-XXX-XX` (varies by county)
+   - Used for county ↔ title company matching
+
+2. **Secondary Match: Address Normalization**
+   ```javascript
+   // Address matching for sources without APN
+   function normalizeAddress(address) {
+       return address
+           .toUpperCase()
+           .replace(/\./g, '')
+           .replace(/STREET/g, 'ST')
+           .replace(/AVENUE/g, 'AVE')
+           .replace(/DRIVE/g, 'DR');
+   }
+   ```
+
+3. **Tertiary Match: Owner Name Fuzzy Matching**
+   - Levenshtein distance for similar names
+   - Handles variations (Bob vs Robert)
+   - Trust score based on match confidence
 
 ### Core Tables
 

@@ -2,6 +2,48 @@
 
 ## Version History & Timeline
 
+### September 2025 - UI/UX Improvements
+
+#### v1.1.0 - Detail View Redesign
+**Date:** September 4, 2025  
+**Type:** UI Enhancement
+
+##### UI/UX Improvements
+- ✅ **Detail View Layout Overhaul**
+  - Fixed header overlap with tabs
+  - Removed sticky positioning for better mobile experience
+  - Optimized for PWA display without scrolling
+  
+- ✅ **Mobile-First Responsive Design**
+  - Compact property cards (p-3 padding)
+  - Vertical flex layout to prevent text wrapping
+  - Cards sized appropriately for mobile screens
+  - Full-height Notes section utilizing available space
+
+- ✅ **Contact Actions Redesign**
+  - Unified navy/dark theme for professional look
+  - Orange accent on Call button (primary action)
+  - 50-60px touch targets following Apple HIG
+  - Fixed bottom bar with 5 action buttons
+  - Gradient backgrounds for depth
+
+- ✅ **Layout Fixes**
+  - Eliminated black gaps between sections
+  - Notes section extends to contact buttons
+  - Proper flex-1 usage for dynamic sizing
+  - 60px padding-bottom for fixed button bar
+
+##### Technical Changes
+```css
+/* New button styling with gradients */
+.contact-button-call {
+    background: linear-gradient(to bottom, #f97316, #ea580c);
+}
+.contact-button-secondary {
+    background: #1f2937;
+}
+```
+
 ### January 2025 - Current Release
 
 #### v1.0.0 - Production Release

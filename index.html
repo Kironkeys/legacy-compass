@@ -234,152 +234,125 @@
     
     <div class="app-container flex flex-col" id="main-app" style="display: none;">
         
-        <!-- Header - Always visible but minimal when Details open -->
-        <div class="bg-gray-900 border-b border-orange-500 px-2 py-1 flex-shrink-0 fixed top-0 left-0 right-0 z-[60]">
-            <div class="flex justify-between items-center" :class="selectedProperty ? '' : 'mb-1'">
+        <!-- Header - Hides when detail view is open -->
+        <div x-show="!selectedProperty" class="bg-gray-900 border-b border-orange-500 px-3 py-2 flex-shrink-0 fixed top-0 left-0 right-0 z-[60]">
+            <!-- Clean Header with Logo and User Info -->
+            <div class="flex justify-between items-center mb-2">
+                <!-- Left: Full Logo -->
                 <div class="flex items-center gap-2">
                     <div class="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    <span class="text-orange-500 font-bold text-sm">Legacy Compass</span>
-                    
-                    <!-- Farm Selector -->
-                    <template x-if="currentUser && userFarms">
-                        <div class="flex items-center gap-1 ml-2">
-                            <select 
-                                @change="switchFarm($event.target.value)"
-                                class="text-xs bg-gray-800 text-white px-2 py-1 rounded border border-gray-700"
-                            >
-                                <option value="">Select Farm</option>
-                                <template x-for="farm in userFarms" :key="farm.id">
-                                    <option 
-                                        :value="farm.id" 
-                                        :selected="window.MasterDatabase.currentFarm && farm.id === window.MasterDatabase.currentFarm.id"
-                                        x-text="farm.farm_name"
-                                    ></option>
-                                </template>
-                            </select>
-                            <button 
-                                @click="createNewFarm()"
-                                class="text-xs bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded"
-                            >
-                                + New
-                            </button>
-                        </div>
-                    </template>
+                    <span class="text-orange-500 font-bold text-lg">Legacy Compass</span>
                 </div>
-                <div class="flex items-center gap-2">
+                
+                <!-- Right: User Info -->
+                <div class="flex items-center gap-3">
                     <span class="text-gray-400 text-xs" x-text="currentUser ? currentUser.email : ''"></span>
-                    <button @click="logout()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">
+                    <button @click="logout()" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded">
                         Logout
                     </button>
                 </div>
             </div>
-            <div x-show="!selectedProperty" class="grid grid-cols-4 gap-1 text-center">
-                <div>
-                    <div class="text-orange-500 font-bold text-base" x-text="displayedCount + '/' + stats.total">0</div>
-                    <div class="text-yellow-500 text-[8px] uppercase">Showing</div>
+            
+            <!-- Stats Bar - Cleaner Design -->
+            <div class="flex justify-around items-center bg-gray-800 rounded-lg px-2 py-1">
+                <div class="text-center">
+                    <span class="text-white font-bold text-sm" x-text="displayedCount + '/' + stats.total">0/0</span>
+                    <span class="text-gray-500 text-[9px] block">PROPERTIES</span>
                 </div>
-                <div>
-                    <div class="text-yellow-500 font-bold text-base" x-text="stats.absentee">0%</div>
-                    <div class="text-yellow-500 text-[8px] uppercase">Absentee</div>
+                <div class="w-px h-6 bg-gray-700"></div>
+                <div class="text-center">
+                    <span class="text-yellow-500 font-bold text-sm" x-text="stats.absentee">0</span>
+                    <span class="text-gray-500 text-[9px] block">ABSENTEE</span>
                 </div>
-                <div>
-                    <div class="text-green-500 font-bold text-base" x-text="stats.avgEquity">0%</div>
-                    <div class="text-yellow-500 text-[8px] uppercase">Equity</div>
+                <div class="w-px h-6 bg-gray-700"></div>
+                <div class="text-center">
+                    <span class="text-green-500 font-bold text-sm" x-text="stats.avgEquity + '%'">0%</span>
+                    <span class="text-gray-500 text-[9px] block">AVG EQUITY</span>
                 </div>
-                <div>
-                    <div class="text-blue-500 font-bold text-base" x-text="allTags.size">0</div>
-                    <div class="text-yellow-500 text-[8px] uppercase">Tags</div>
+                <div class="w-px h-6 bg-gray-700"></div>
+                <div class="text-center">
+                    <span class="text-blue-500 font-bold text-sm" x-text="allTags.size">0</span>
+                    <span class="text-gray-500 text-[9px] block">TAGS</span>
                 </div>
             </div>
         </div>
         
         <!-- Main Content - Full Width Map -->
-        <div class="flex-1 relative overflow-hidden" style="margin-bottom: calc(35vh + 60px); padding-top: 80px;">
+        <div class="flex-1 relative overflow-hidden" style="margin-bottom: calc(40vh + 50px); padding-top: 60px;">
             
-            <!-- Map Section - Full Width -->
-            <div class="flex flex-col h-full">
-                <!-- Map Controls Section -->
-                <div class="bg-gray-900 p-2 flex-shrink-0 relative z-10">
-                    <!-- Map Search Bar -->
-                    <div class="flex gap-2 mb-1">
-                        <input type="text" 
-                               x-model="searchQuery"
-                               @keyup.enter="searchAddress()"
-                               placeholder="🔍 Search any address or location..."
-                               class="flex-1 bg-gray-800 text-white px-3 py-2 rounded text-sm border border-gray-700 focus:border-orange-500 focus:outline-none">
-                        <button @click="searchAddress()" 
-                                class="bg-orange-500 hover:bg-orange-400 text-black px-4 py-2 rounded font-bold text-sm">
-                            Go
-                        </button>
-                        <button @click="searchMasterDatabase()" 
-                                class="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded font-bold text-sm"
-                                x-show="currentUser">
-                            + Add
-                        </button>
-                    </div>
-                    
-                    <!-- Map Style Controls -->
-                    <div class="flex gap-1">
-                        <button class="flex-1 py-1 text-[10px] rounded"
-                                :class="mapStyle === 'day' ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400'"
-                                @click="setMapStyle('day')">☀️</button>
-                        <button class="flex-1 py-1 text-[10px] rounded"
-                                :class="mapStyle === 'dusk' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-400'"
-                                @click="setMapStyle('dusk')">🌅</button>
-                        <button class="flex-1 py-1 text-[10px] rounded"
-                                :class="mapStyle === 'night' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400'"
-                                @click="setMapStyle('night')">🌙</button>
-                        <button class="flex-1 py-1 text-[10px] rounded"
-                                :class="mapStyle === 'satellite' ? 'bg-green-500 text-white' : 'bg-gray-800 text-gray-400'"
-                                @click="setMapStyle('satellite')">🛰️</button>
-                        <button class="flex-1 py-1 text-[10px] rounded"
-                                :class="is3D ? 'bg-orange-500 text-white' : 'bg-gray-800 text-gray-400'"
-                                @click="toggle3D()">🏢</button>
+            <!-- Map Section - Full Height -->
+            <div class="absolute inset-0">
+                <!-- Map Container - Full Size -->
+                <div id="map" class="w-full h-full" style="background-color: #1a1a1a;">
+                    <!-- Fallback message if map doesn't load -->
+                    <div id="map-loading-message" class="flex items-center justify-center h-full text-gray-500">
+                        <div class="text-center">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                            <p>Loading map...</p>
+                        </div>
                     </div>
                 </div>
-                <!-- Map Container - Full Width -->
-                <div id="map" class="flex-1"></div>
             </div>
             
             <!-- Fixed Bottom Properties Panel (expands for details) -->
-            <div class="fixed bottom-0 left-0 right-0 bg-gray-900 border-t-2 border-orange-500 z-40 transition-all duration-300" 
-                 :style="`height: ${selectedProperty ? '70vh' : '35vh'}; margin-bottom: 60px;`">
+            <div class="fixed bottom-0 left-0 right-0 bg-black border-t-2 border-orange-500 z-40 transition-all duration-300" 
+                 :style="`height: ${selectedProperty ? '70vh' : '42vh'}; margin-bottom: 48px;`">
                 
-                <!-- Dynamic Header (changes based on view) -->
-                <div class="bg-gray-800 p-2 border-b border-gray-700" x-show="!selectedProperty">
-                    <div class="flex items-center gap-2">
-                        <!-- Property Type Filters -->
-                        <button class="py-1 px-2 text-[10px] rounded font-bold"
+                <!-- Dynamic Header with Farm Selector and Filters -->
+                <div class="bg-black/50 p-1 border-b border-gray-800" x-show="!selectedProperty">
+                    <div class="flex items-center gap-1 overflow-x-auto">
+                        <!-- Farm Selector (moved here) -->
+                        <template x-if="currentUser && userFarms">
+                            <div class="flex items-center gap-1 pr-2 border-r border-gray-600 mr-2">
+                                <select 
+                                    @change="switchFarm($event.target.value)"
+                                    class="text-[10px] bg-gray-700 text-white px-2 py-1 rounded border border-gray-600 max-w-[100px]"
+                                >
+                                    <option value="">Farm</option>
+                                    <template x-for="farm in userFarms" :key="farm.id">
+                                        <option 
+                                            :value="farm.id" 
+                                            :selected="window.MasterDatabase.currentFarm && farm.id === window.MasterDatabase.currentFarm.id"
+                                            x-text="farm.farm_name"
+                                        ></option>
+                                    </template>
+                                </select>
+                                <button 
+                                    @click="createNewFarm()"
+                                    class="text-[10px] bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded font-bold"
+                                    title="Create New Farm"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </template>
+                        
+                        <!-- Property Type Filters - Bigger for Mobile -->
+                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'all' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('all')">
                             ALL (<span x-text="stats.total || 0"></span>)
                         </button>
-                        <button class="py-1 px-2 text-[10px] rounded font-bold"
+                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'sfr' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('sfr')">
                             SFR (<span x-text="typeCount.sfr || 0"></span>)
                         </button>
-                        <button class="py-1 px-2 text-[10px] rounded font-bold"
+                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'condo' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('condo')">
                             CONDO (<span x-text="typeCount.condo || 0"></span>)
                         </button>
-                        <button class="py-1 px-2 text-[10px] rounded font-bold"
+                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'commercial' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('commercial')">
                             COMM (<span x-text="typeCount.commercial || 0"></span>)
                         </button>
-                        <button class="py-1 px-2 text-[10px] rounded font-bold"
+                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'multi' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('multi')">
                             MULTI (<span x-text="typeCount.multi || 0"></span>)
                         </button>
-                        <!-- Property Search -->
-                        <input type="text" 
-                               x-model="propertySearch" 
-                               @input="filterProperties()"
-                               placeholder="Search or #tag..." 
-                               class="flex-1 px-2 py-1 bg-gray-900 text-white rounded text-xs border border-gray-700 focus:border-orange-500">
                     </div>
                 </div>
                 
@@ -398,7 +371,7 @@
                 </div>
                 
                 <!-- Property List (shows when no property selected) -->
-                <div x-show="!selectedProperty" class="flex-1 overflow-y-auto property-list p-2" style="max-height: 300px; overflow-y: auto;">
+                <div x-show="!selectedProperty" class="flex-1 overflow-y-auto overflow-x-hidden property-list p-2" style="max-height: calc(100% - 40px);">
                     <template x-if="loading">
                             <div class="text-center py-4 text-yellow-500 text-xs">
                                 Loading properties...
@@ -426,18 +399,18 @@
                         </template>
                         
                         <template x-for="property in paginatedProperties" :key="property.id">
-                        <div class="bg-gray-800 p-2 mb-1 rounded hover:bg-gray-700 transition-colors border border-gray-700 cursor-pointer"
+                        <div class="bg-gray-900/90 p-2 mb-1 rounded-lg hover:bg-gray-800/90 transition-colors border border-gray-700/50 cursor-pointer"
                              @click="showPropertyDetails(property)">
                             
                             <!-- Header - Address and Owner -->
-                            <div class="flex justify-between items-start mb-1">
+                            <div class="flex justify-between items-start mb-2">
                                 <div class="flex-1">
-                                    <div class="text-white text-[11px] font-bold truncate" x-text="property.address"></div>
-                                    <div class="text-gray-400 text-[10px] truncate" x-text="property.owner"></div>
+                                    <div class="text-white text-base font-bold truncate" x-text="property.address"></div>
+                                    <div class="text-gray-400 text-sm truncate" x-text="property.owner"></div>
                                 </div>
-                                <div class="text-right">
-                                    <div class="text-cyan-400 font-bold text-sm" x-text="property.equity + '%'"></div>
-                                    <div class="text-gray-500 text-[8px]">Equity</div>
+                                <div class="text-right" x-show="property.equity !== undefined && property.equity !== null && !isNaN(property.equity)">
+                                    <div class="text-cyan-400 font-bold text-lg" x-text="property.equity + '%'"></div>
+                                    <div class="text-gray-500 text-xs">Equity</div>
                                 </div>
                             </div>
                             
@@ -455,16 +428,16 @@
                                 </template>
                             </div>
                             
-                            <!-- Action Buttons Row -->
-                            <div class="flex gap-1">
-                                <button class="flex-1 px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[9px] rounded transition-colors"
+                            <!-- Action Buttons Row - Much Bigger for Mobile -->
+                            <div class="flex gap-2">
+                                <button class="flex-1 px-3 py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold rounded-lg transition-colors"
                                         @click.stop="focusProperty(property)">
                                     🎯 Focus
                                 </button>
-                                <button @click.stop="showPropertyDetails(property)" class="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-[9px] rounded transition-colors">
+                                <button @click.stop="showPropertyDetails(property)" class="flex-1 px-3 py-3 bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold rounded-lg transition-colors">
                                     ℹ️ Details
                                 </button>
-                                <button class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-[9px] rounded transition-colors"
+                                <button class="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
                                         @click.stop="startVoiceNote(property)">
                                     🎤
                                 </button>
@@ -474,157 +447,154 @@
                 </div>
                 
                 <!-- Property Details View (shows when property selected) -->
-                <div x-show="selectedProperty" class="fixed inset-0 z-50 flex flex-col" style="background-color: #0a0a0a; padding-top: 45px; padding-bottom: 70px;">
-                    <!-- Property Header with Back -->
-                    <div class="bg-gray-800 border-b border-gray-700 p-3 sticky top-0 z-10">
+                <div x-show="selectedProperty" class="fixed inset-0 z-50 flex flex-col" style="background-color: #0a0a0a;">
+                    <!-- Simplified Property Header -->
+                    <div class="bg-gray-900 border-b-2 border-orange-500 p-3">
                         <div class="flex justify-between items-center">
-                            <div>
-                                <h2 class="text-white font-bold text-sm" x-text="selectedProperty?.address"></h2>
-                                <p class="text-gray-400 text-xs" x-text="selectedProperty?.owner"></p>
-                            </div>
                             <button @click="selectedProperty = null; detailsTab = 'overview'" 
-                                    class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-xs">
-                                ← Back
+                                    class="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                Back
                             </button>
+                            
+                            <h2 class="text-white font-semibold text-lg flex-1 text-center" x-text="selectedProperty?.address"></h2>
+                            
+                            <!-- More menu button -->
+                            <div class="relative">
+                                <button @click="showMoreMenu = !showMoreMenu" 
+                                        class="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg">
+                                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                    </svg>
+                                </button>
+                                <!-- More menu dropdown -->
+                                <div x-show="showMoreMenu" 
+                                     @click.away="showMoreMenu = false"
+                                     x-transition
+                                     class="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50">
+                                    <button @click="showTagModal = true; showMoreMenu = false" 
+                                            class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white">
+                                        <span>🏷️</span> Manage Tags
+                                    </button>
+                                    <button @click="exportToCSV(); showMoreMenu = false" 
+                                            class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white">
+                                        <span>📊</span> Export Data
+                                    </button>
+                                    <button @click="toggleHotList(selectedProperty); showMoreMenu = false" 
+                                            class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white">
+                                        <span x-text="(selectedProperty?.tags || []).includes('hot') ? '❄️' : '🔥'"></span>
+                                        <span x-text="(selectedProperty?.tags || []).includes('hot') ? 'Remove from Hot' : 'Add to Hot'"></span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Tabs Navigation -->
-                    <div class="bg-gray-900 border-b border-gray-700 flex sticky top-12 z-10">
+                    <!-- Tabs Navigation - Fixed below header -->
+                    <div class="bg-gray-900 border-b border-gray-700 flex">
                         <button @click="detailsTab = 'overview'" 
                                 :class="detailsTab === 'overview' ? 'bg-orange-500 text-black' : 'bg-gray-800 text-gray-400'"
-                                class="flex-1 py-2 px-3 text-xs font-bold transition-colors">
+                                class="flex-1 py-3 px-4 text-sm font-bold transition-colors">
                             📊 Overview
                         </button>
                         <button @click="detailsTab = 'ghost'" 
                                 :class="detailsTab === 'ghost' ? 'bg-orange-500 text-black' : 'bg-gray-800 text-gray-400'"
-                                class="flex-1 py-2 px-3 text-xs font-bold transition-colors">
-                            🤖 Ghost AI
+                                class="flex-1 py-3 px-4 text-sm font-bold transition-colors">
+                            👻 Ghost AI
                         </button>
                     </div>
 
-                    <!-- Tab Content - No scroll, everything in view -->
-                    <div class="flex-1 flex flex-col p-2" style="overflow: hidden; height: 100%;">
+                    <!-- Tab Content - Scrollable area -->
+                    <div class="flex-1 overflow-y-auto p-3" style="padding-bottom: 70px;">
                         <!-- Overview Tab -->
-                        <div x-show="detailsTab === 'overview'" x-transition class="flex flex-col" style="height: 100%;">
-                            <!-- Mini Map - Much Larger -->
-                            <div class="bg-gray-900 rounded mb-1 relative overflow-hidden" style="height: calc(100vh - 480px); min-height: 200px;">
-                                <div id="mini-map" class="w-full h-full"></div>
-                                <div class="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-[10px] px-2 py-1 rounded">
-                                    📍 <span x-text="selectedProperty?.address"></span>
-                                </div>
-                            </div>
-
-                            <!-- Quick Actions Bar - Smaller -->
-                            <div class="grid grid-cols-5 gap-1 mb-1">
-                                <button @click="callOwner(selectedProperty)" 
-                                        class="bg-gray-800 hover:bg-gray-700 text-cyan-400 py-2 rounded flex flex-col items-center text-xs">
-                                    <span>📞</span>
-                                    <span class="text-[9px]">Call</span>
-                                </button>
-                                <button class="bg-gray-800 hover:bg-gray-700 text-gray-400 py-2 rounded flex flex-col items-center text-xs">
-                                    <span>💬</span>
-                                    <span class="text-[9px]">Text</span>
-                                </button>
-                                <button class="bg-gray-800 hover:bg-gray-700 text-gray-400 py-2 rounded flex flex-col items-center text-xs">
-                                    <span>✉️</span>
-                                    <span class="text-[9px]">Email</span>
-                                </button>
-                                <button @click="routeToProperty(selectedProperty)" 
-                                        class="bg-gray-800 hover:bg-gray-700 text-orange-400 py-2 rounded flex flex-col items-center text-xs">
-                                    <span>🚗</span>
-                                    <span class="text-[9px]">Route</span>
-                                </button>
-                                <button class="bg-gray-800 hover:bg-gray-700 text-yellow-400 py-2 rounded flex flex-col items-center text-xs">
-                                    <span>📮</span>
-                                    <span class="text-[9px]">Mailer</span>
-                                </button>
-                            </div>
+                        <div x-show="detailsTab === 'overview'" x-transition class="space-y-3 h-full flex flex-col">
 
                             <!-- Key Metrics - Compact -->
-                            <div class="grid grid-cols-3 gap-1 mb-1">
-                                <div class="bg-gray-900 p-1 rounded text-center">
-                                    <div class="text-cyan-400 text-lg font-bold" x-text="(selectedProperty?.equity || 0) + '%'"></div>
-                                    <div class="text-gray-600 text-[9px] uppercase">Equity</div>
+                            <div class="grid grid-cols-3 gap-2 mb-3">
+                                <div class="bg-gray-800 p-3 rounded-lg text-center">
+                                    <div class="text-cyan-400 text-xl font-bold" x-text="(selectedProperty?.equity || 0) + '%'"></div>
+                                    <div class="text-gray-400 text-xs uppercase">Equity</div>
                                 </div>
-                                <div class="bg-gray-900 p-1 rounded text-center">
-                                    <div class="text-green-400 text-lg font-bold">$<span x-text="Math.floor((parseInt(selectedProperty?.['Purchase Price'] || 0))/1000) + 'k'"></span></div>
-                                    <div class="text-gray-600 text-[9px] uppercase">Purchase</div>
+                                <div class="bg-gray-800 p-3 rounded-lg text-center">
+                                    <div class="text-green-400 text-xl font-bold">$<span x-text="Math.floor((parseInt(selectedProperty?.['Purchase Price'] || 0))/1000) + 'k'"></span></div>
+                                    <div class="text-gray-400 text-xs uppercase">Purchase</div>
                                 </div>
-                                <div class="bg-gray-900 p-1 rounded text-center">
-                                    <div class="text-orange-400 text-lg font-bold" x-text="selectedProperty?.['Year Built'] || 'N/A'"></div>
-                                    <div class="text-gray-600 text-[9px] uppercase">Built</div>
+                                <div class="bg-gray-800 p-3 rounded-lg text-center">
+                                    <div class="text-orange-400 text-xl font-bold" x-text="selectedProperty?.['Year Built'] || '1984'"></div>
+                                    <div class="text-gray-400 text-xs uppercase">Built</div>
                                 </div>
                             </div>
 
-                            <!-- Property Details Grid - Compact -->
-                            <div class="grid grid-cols-2 gap-1">
+                            <!-- Property Details Grid - Optimized for mobile -->
+                            <div class="grid grid-cols-2 gap-2">
                                 <!-- Owner Information - Compact -->
-                                <div class="bg-gray-900 p-2 rounded">
-                                    <h4 class="text-orange-500 text-xs font-bold mb-1 uppercase tracking-wider">Owner Details</h4>
-                                    <div class="space-y-1 text-xs">
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Name:</span>
+                                <div class="bg-gray-900 p-3 rounded-lg">
+                                    <h4 class="text-orange-500 text-sm font-bold mb-2 uppercase tracking-wider">Owner Details</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Name:</span>
                                             <span class="text-white font-semibold text-sm" x-text="selectedProperty?.owner || 'N/A'"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Status:</span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Status:</span>
                                             <span :class="selectedProperty?.absentee ? 'text-orange-400' : 'text-green-400'" 
-                                                  class="font-bold text-sm"
+                                                  class="font-bold text-sm whitespace-nowrap"
                                                   x-text="selectedProperty?.absentee ? 'Absentee' : 'Owner Occupied'"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Mailing:</span>
-                                            <span class="text-white text-xs" x-text="selectedProperty?.['Mailing City'] || 'N/A'"></span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Mailing:</span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.['Mailing City'] || 'N/A'"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Phone:</span>
-                                            <span class="text-white text-xs" x-text="selectedProperty?.phone || 'N/A'"></span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Phone:</span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.phone || 'N/A'"></span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Property Specs - Compact -->
-                                <div class="bg-gray-900 p-2 rounded">
-                                    <h4 class="text-orange-500 text-xs font-bold mb-1 uppercase tracking-wider">Property Specs</h4>
-                                    <div class="space-y-1 text-xs">
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Size:</span>
+                                <div class="bg-gray-900 p-3 rounded-lg">
+                                    <h4 class="text-orange-500 text-sm font-bold mb-2 uppercase tracking-wider">Property Specs</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Size:</span>
                                             <span class="text-white font-semibold text-sm" x-text="(selectedProperty?.['Building Size'] || 0) + ' sqft'"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Rooms:</span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Rooms:</span>
                                             <span class="text-white font-bold text-sm" x-text="`${selectedProperty?.Bedrooms || 0}bd / ${selectedProperty?.Baths || 0}ba`"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Lot:</span>
-                                            <span class="text-white text-xs" x-text="(selectedProperty?.['Lot Size Total Acreage'] || 0) + ' acres'"></span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Lot:</span>
+                                            <span class="text-white font-semibold text-sm" x-text="(selectedProperty?.['Lot Size Total Acreage'] || 0) + ' acres'"></span>
                                         </div>
-                                        <div class="flex justify-between py-0">
-                                            <span class="text-gray-500 font-medium">Year:</span>
-                                            <span class="text-white text-xs" x-text="selectedProperty?.['Year Built'] || 'N/A'"></span>
+                                        <div class="flex flex-col">
+                                            <span class="text-gray-400 text-xs">Year:</span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.['Year Built'] || 'N/A'"></span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <!-- Notes Section - Smaller to give more space to map -->
-                            <div class="bg-gray-900 p-2 rounded mt-1 flex flex-col" style="height: 140px;">
-                                <h4 class="text-orange-500 text-xs font-bold mb-1 uppercase tracking-wider">Notes & Activity</h4>
+                            <!-- Notes Section - Truly fills to bottom -->
+                            <div class="bg-gray-900 p-3 rounded-lg mt-2 flex-1 flex flex-col">
+                                <h4 class="text-orange-500 text-sm font-bold mb-2 uppercase tracking-wider">Notes & Activity</h4>
                                 
-                                <!-- Activity History - Fill available space in smaller container -->
-                                <div class="bg-gray-800 rounded p-2 mb-2 flex-1" style="overflow-y: auto; min-height: 0;">
-                                    <div class="text-gray-500 text-[10px] uppercase mb-1">Activity History</div>
-                                    <div class="space-y-1">
+                                <!-- Activity History - Expands fully -->
+                                <div class="bg-gray-800 rounded-lg p-2 mb-2 flex-1 overflow-y-auto">
+                                    <div class="text-gray-500 text-xs uppercase mb-2">Activity History</div>
+                                    <div class="space-y-2">
                                         <!-- Display notes as simple text if it's a string -->
                                         <div x-show="selectedProperty?.notes && typeof selectedProperty.notes === 'string'" 
-                                             class="bg-gray-900 p-2 rounded text-[10px] whitespace-pre-wrap text-white"
+                                             class="bg-gray-900 p-3 rounded text-sm whitespace-pre-wrap text-white leading-relaxed"
                                              x-text="selectedProperty.notes">
                                         </div>
                                         <!-- Display as array if it's an array (legacy support) -->
                                         <template x-show="selectedProperty?.notes && Array.isArray(selectedProperty.notes)" 
                                                   x-for="note in (selectedProperty?.notes || [])" :key="note.id">
-                                            <div class="bg-gray-900 p-2 rounded text-[10px] group hover:bg-gray-800">
+                                            <div class="bg-gray-900 p-3 rounded text-sm group hover:bg-gray-800">
                                                 <div class="flex justify-between items-start">
                                                     <div class="flex-1">
                                                         <div class="text-gray-400" x-text="note.timestamp"></div>
@@ -776,34 +746,111 @@
                         </div>
                     </div>
                 </div>
-            </div>
+                </div><!-- End scrollable content -->
+                
+                <!-- Contact Action Bar - Fixed at bottom inside detail view -->
+                <div x-show="selectedProperty" class="fixed bottom-0 left-0 right-0 bg-gray-900 border-t-2 border-orange-500 p-2 flex gap-2 z-50"
+                     style="height: 70px; padding-bottom: env(safe-area-inset-bottom);">
+                    <!-- Call button - Orange highlight (primary action) -->
+                    <button @click="callOwner(selectedProperty)" 
+                            class="flex-1 bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 active:from-orange-600 active:to-orange-700 text-white rounded-lg flex flex-col items-center justify-center shadow-lg"
+                            style="min-height: 54px;">
+                        <span class="text-2xl">📞</span>
+                        <span class="text-xs font-semibold">Call</span>
+                    </button>
+                    <!-- Other buttons - Dark navy -->
+                    <button class="flex-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white rounded-lg flex flex-col items-center justify-center shadow-lg"
+                            style="min-height: 54px;">
+                        <span class="text-2xl">💬</span>
+                        <span class="text-xs font-semibold">Text</span>
+                    </button>
+                    <button class="flex-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white rounded-lg flex flex-col items-center justify-center shadow-lg"
+                            style="min-height: 54px;">
+                        <span class="text-2xl">✉️</span>
+                        <span class="text-xs font-semibold">Email</span>
+                    </button>
+                    <button @click="routeToProperty(selectedProperty)" 
+                            class="flex-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white rounded-lg flex flex-col items-center justify-center shadow-lg"
+                            style="min-height: 54px;">
+                        <span class="text-2xl">📍</span>
+                        <span class="text-xs font-semibold">Route</span>
+                    </button>
+                    <button class="flex-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-900 text-white rounded-lg flex flex-col items-center justify-center shadow-lg"
+                            style="min-height: 54px;">
+                        <span class="text-2xl">📬</span>
+                        <span class="text-xs font-semibold">Mail</span>
+                    </button>
+                </div>
+            </div><!-- End detail view -->
         
-        <!-- Footer - Bottom Navigation -->
-        <div class="bg-gray-900 border-t border-orange-500 p-2 flex gap-1 flex-shrink-0 fixed bottom-0 left-0 right-0 z-50" style="padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));">
-            <button class="flex-1 bg-gray-800 text-orange-500 py-3 px-1 rounded text-[11px] font-bold active:bg-orange-500 active:text-black"
-                    @click="filterAbsentee()">
-                🏠<br>Absent
-            </button>
-            <button class="flex-1 bg-gray-800 text-orange-500 py-3 px-1 rounded text-[11px] font-bold active:bg-orange-500 active:text-black"
-                    @click="showTagManager()">
-                🏷️<br>Tags
-            </button>
-            <button class="flex-1 bg-gray-800 text-orange-500 py-3 px-1 rounded text-[11px] font-bold active:bg-orange-500 active:text-black cursor-pointer z-10"
-                    @click="uploadCSV()" @touchstart="uploadCSV()">
-                📁<br>CSV
-            </button>
-            <button class="flex-1 bg-purple-600 text-white py-3 px-1 rounded text-[11px] font-bold active:bg-purple-800"
-                    @click="showFarmOverview()" title="Show aerial view of farm">
-                ✈️<br>Aerial
-            </button>
-            <button class="flex-1 bg-gray-800 text-orange-500 py-3 px-1 rounded text-[11px] font-bold active:bg-orange-500 active:text-black"
-                    @click="exportData()">
-                📊<br>Export
-            </button>
-            <button class="flex-1 bg-red-600 text-white py-3 px-1 rounded text-[11px] font-bold active:bg-red-800"
-                    @click="showHotList()">
-                🔥<br>Hot <span x-text="`(${hotList.length})`"></span>
-            </button>
+        <!-- Footer - Unified Bottom Navigation (hidden when in detail view) -->
+        <div x-show="!selectedProperty" 
+             class="bg-black border-t-2 border-orange-500 p-3 flex-shrink-0 fixed bottom-0 left-0 right-0 z-50" 
+             style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+            
+            <!-- Unified Search Bar with Actions - Bigger for Mobile -->
+            <div class="flex gap-2">
+                <!-- Search Input -->
+                <input type="text" 
+                       x-model="searchQuery"
+                       @keyup.enter="searchAddress()"
+                       placeholder="🔍 Search properties, #tags, or add new..."
+                       class="flex-1 bg-gray-900 text-white px-4 py-4 rounded-lg text-base border border-gray-800 focus:border-orange-500 focus:outline-none">
+                
+                <!-- Go Button - for general search -->
+                <button @click="searchAddress()" 
+                        class="bg-orange-500 hover:bg-orange-400 text-black px-5 py-4 rounded-lg font-bold text-base">
+                    Go
+                </button>
+                
+                <!-- Add Button - for adding from master database -->
+                <button @click="searchMasterDatabase()" 
+                        class="bg-green-600 hover:bg-green-500 text-white px-4 py-4 rounded-lg font-bold text-base"
+                        x-show="currentUser">
+                    + Add
+                </button>
+                
+                <!-- Menu Button for Other Actions -->
+                <div class="relative" x-data="{ showActionsMenu: false }">
+                    <button class="bg-gray-800 hover:bg-gray-700 text-orange-500 px-4 py-3 rounded-lg text-lg font-bold"
+                            @click="showActionsMenu = !showActionsMenu">
+                        ⋮
+                    </button>
+                    
+                    <!-- Dropdown Menu -->
+                    <div x-show="showActionsMenu" 
+                         @click.away="showActionsMenu = false"
+                         x-transition
+                         class="absolute bottom-full right-0 mb-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
+                        <button @click="uploadCSV(); showActionsMenu = false" 
+                                class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                            📁 Upload CSV
+                        </button>
+                        <button @click="showFarmOverview(); showActionsMenu = false" 
+                                class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                            ✈️ Aerial View
+                        </button>
+                        <button @click="exportData(); showActionsMenu = false" 
+                                class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                            📊 Export Data
+                        </button>
+                        <button @click="showHotList(); showActionsMenu = false" 
+                                class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                            🔥 Hot List <span x-text="`(${hotList.length})`" class="text-xs text-gray-400"></span>
+                        </button>
+                        <div class="border-t border-gray-700 mt-1 pt-1">
+                            <button @click="filterAbsentee(); showActionsMenu = false" 
+                                    class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                                🏠 Filter Absentee
+                            </button>
+                            <button @click="showTagManager(); showActionsMenu = false" 
+                                    class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-white text-sm">
+                                🏷️ Manage Tags
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
     </div>  <!-- Close main app container -->
@@ -823,6 +870,7 @@
                 filteredProperties: [],
                 selectedProperty: null,
                 detailsTab: 'overview',  // Add this for tab navigation
+                showMoreMenu: false,  // For the More dropdown menu
                 hotList: [],
                 loading: false,
                 currentFarmName: '',
@@ -2555,7 +2603,18 @@
                     
                     // Update UI
                     this.updatePagination();
-                    this.addMapMarkers();
+                    
+                    // Ensure map is ready and resize it
+                    if (this.map) {
+                        this.map.resize();
+                        // Small delay to ensure map is ready before adding markers
+                        setTimeout(() => {
+                            this.addMapMarkers();
+                        }, 100);
+                    } else {
+                        this.addMapMarkers();
+                    }
+                    
                     this.calculateStats();
                     
                     console.log('✅ Switched to farm:', this.currentFarmName);
