@@ -103,16 +103,23 @@ window.MasterDatabase = {
             if (error) throw error;
             
             // Flatten the response and add farm-specific data
-            const properties = (data || []).map(item => ({
-                ...item.master_properties,
-                farmPropertyId: item.id,
-                isHotList: item.is_hot_list,
-                privateNotes: item.private_notes,
-                lastVisited: item.last_visited,
-                visitCount: item.visit_count,
-                priority: item.priority,
-                // Map the fields to match frontend expectations
-                id: item.master_properties.apn,
+            const properties = (data || []).map(item => {
+                // Debug logging
+                if (item.notes || item.private_notes) {
+                    console.log('📝 Property has notes:', item.apn, 'notes:', item.notes, 'private_notes:', item.private_notes);
+                }
+                
+                return {
+                    ...item.master_properties,
+                    farmPropertyId: item.id,
+                    isHotList: item.is_hot_list,
+                    privateNotes: item.private_notes,
+                    notes: item.notes || item.private_notes || '',
+                    lastVisited: item.last_visited,
+                    visitCount: item.visit_count,
+                    priority: item.priority,
+                    // Map the fields to match frontend expectations
+                    id: item.master_properties.apn,
                 lat: item.master_properties.latitude,
                 lng: item.master_properties.longitude,
                 address: item.master_properties.property_address,
@@ -122,12 +129,23 @@ window.MasterDatabase = {
                 city: item.master_properties.city,
                 state: item.master_properties.state,
                 zip: item.master_properties.zip_code,
+                // Map to the exact field names the UI expects
+                Bedrooms: item.master_properties.bedrooms,
+                Baths: item.master_properties.bathrooms,
+                'Building Size': item.master_properties.square_feet,
+                'Year Built': item.master_properties.year_built,
+                'Purchase Price': item.master_properties.purchase_price || 0,
+                'Purchase Date': item.master_properties.purchase_date || '',
+                'Mailing City': item.master_properties.mailing_city || item.master_properties.city,
+                'Lot Size': item.master_properties.lot_size,
+                type: item.master_properties.property_type,
+                // Keep lowercase versions too for compatibility
                 bedrooms: item.master_properties.bedrooms,
                 bathrooms: item.master_properties.bathrooms,
                 sqft: item.master_properties.square_feet,
-                yearBuilt: item.master_properties.year_built,
-                type: item.master_properties.property_type
-            }));
+                    yearBuilt: item.master_properties.year_built
+                };
+            });
             
             console.log('🏘️ Loaded', properties.length, 'properties from farm');
             return properties;
@@ -186,14 +204,19 @@ window.MasterDatabase = {
                 latitude: parseFloat(prop.lat) || parseFloat(prop.latitude) || null,
                 longitude: parseFloat(prop.lng) || parseFloat(prop.longitude) || null,
                 is_absentee: prop.absentee === true || prop.absentee === 'true' || prop.absentee === 'Absentee Owner',
-                city: prop.city || 'Hayward',
-                state: prop.state || 'CA',
-                zip_code: prop.zip || '',
-                bedrooms: parseInt(prop.bedrooms) || null,
-                bathrooms: parseFloat(prop.bathrooms) || null,
-                square_feet: parseInt(prop.sqft) || null,
-                year_built: parseInt(prop.yearBuilt) || null,
-                property_type: prop.type || 'SFR'
+                city: prop.city || prop['Site City'] || 'Hayward',
+                state: prop.state || prop['Site State'] || 'CA',
+                zip_code: prop.zip || prop['Site Zip Code'] || '',
+                bedrooms: parseInt(prop.bedrooms) || parseInt(prop.Bedrooms) || null,
+                bathrooms: parseFloat(prop.bathrooms) || parseFloat(prop.Baths) || null,
+                square_feet: parseInt(prop.sqft) || parseInt(prop['Building Size']) || null,
+                year_built: parseInt(prop.yearBuilt) || parseInt(prop['Year Built']) || null,
+                property_type: prop.type || prop['Property Type'] || 'SFR',
+                // Add missing fields from CSV
+                purchase_price: parseInt(prop.purchasePrice) || parseInt(prop['Purchase Price']) || null,
+                purchase_date: prop.purchaseDate || prop['Purchase Date'] || null,
+                mailing_city: prop.mailCity || prop['Mailing City'] || null,
+                lot_size: parseFloat(prop['Lot Size (SqFt)']) || null
             }));
 
             // Insert into master_properties (skip duplicates)
@@ -219,13 +242,14 @@ window.MasterDatabase = {
                 status: 'active'
             }));
 
-            // Insert farm links
+            // Insert farm links and return the data to get IDs
             const { data, error } = await supabase
                 .from('farm_properties')
                 .upsert(farmLinks, { 
                     onConflict: 'farm_id,apn',
                     ignoreDuplicates: true 
-                });
+                })
+                .select();
 
             if (error) throw error;
             
@@ -315,24 +339,50 @@ window.MasterDatabase = {
     },
     
     /**
-     * Update property notes
+     * Update property notes (syncs to cloud)
      */
     async updatePropertyNotes(supabase, farmPropertyId, notes) {
         try {
-            const { error } = await supabase
-                .from('farm_properties')
-                .update({ 
-                    private_notes: notes,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', farmPropertyId);
+            console.log('📝 Updating notes for farmPropertyId:', farmPropertyId);
+            console.log('📝 Notes content:', notes);
             
-            if (error) throw error;
+            if (!farmPropertyId) {
+                console.error('No farmPropertyId provided for notes update');
+                return false;
+            }
             
-            console.log('✅ Updated property notes');
+            // Use RPC function for reliable updates
+            const { data, error } = await supabase
+                .rpc('update_property_notes', {
+                    p_farm_property_id: farmPropertyId,
+                    p_notes: notes
+                });
+            
+            if (error) {
+                // Fallback to direct update if function doesn't exist
+                console.log('RPC function not found, using direct update');
+                const { data: updateData, error: updateError } = await supabase
+                    .from('farm_properties')
+                    .update({ 
+                        notes: notes,
+                        private_notes: notes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', farmPropertyId)
+                    .select()
+                    .single();
+                
+                if (updateError) throw updateError;
+                
+                console.log('✅ Updated property notes via direct update:', updateData);
+                return true;
+            }
+            
+            console.log('✅ Updated property notes via RPC:', data);
             return true;
         } catch (error) {
             console.error('Error updating notes:', error);
+            console.error('Error details:', error.message, error.code, error.details);
             return false;
         }
     },
