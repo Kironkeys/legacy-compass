@@ -4219,6 +4219,19 @@ Farm: ${this.currentFarmName}`;
                             
                             // Set up Web Speech API for transcription
                             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                            
+                            // Check if we're on HTTPS (required for Web Speech API)
+                            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
+                            if (!isSecure) {
+                                console.warn('Voice transcription requires HTTPS. Falling back to text input.');
+                                const note = prompt('Voice transcription requires HTTPS. Please type your note:');
+                                if (note) {
+                                    transcript.value = note;
+                                    this.voiceTranscription = note;
+                                }
+                                return;
+                            }
+                            
                             if (SpeechRecognition) {
                                 const recognition = new SpeechRecognition();
                                 recognition.continuous = true;
@@ -4248,6 +4261,21 @@ Farm: ${this.currentFarmName}`;
                                     console.error('Speech recognition error:', event.error);
                                     if (event.error === 'no-speech') {
                                         transcript.value = '(No speech detected)';
+                                    } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                                        alert('Microphone permission denied. Please enable microphone access and try again.');
+                                        // Fallback to text input
+                                        const note = prompt('Voice transcription not available. Please type your note:');
+                                        if (note) {
+                                            transcript.value = note;
+                                            finalTranscript = note;
+                                        }
+                                    } else if (event.error === 'network') {
+                                        alert('Voice transcription requires a secure connection. Please type your note instead.');
+                                        const note = prompt('Please type your note:');
+                                        if (note) {
+                                            transcript.value = note;
+                                            finalTranscript = note;
+                                        }
                                     }
                                 };
                                 
