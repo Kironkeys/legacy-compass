@@ -4220,74 +4220,121 @@ Farm: ${this.currentFarmName}`;
                             // Set up Web Speech API for transcription
                             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                             
-                            // Check if we're on HTTPS (required for Web Speech API)
-                            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
-                            if (!isSecure) {
-                                console.warn('Voice transcription requires HTTPS. Falling back to text input.');
-                                const note = prompt('Voice transcription requires HTTPS. Please type your note:');
-                                if (note) {
-                                    transcript.value = note;
-                                    this.voiceTranscription = note;
-                                }
-                                return;
-                            }
+                            // Detect Safari browser
+                            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
                             
                             if (SpeechRecognition) {
-                                const recognition = new SpeechRecognition();
-                                recognition.continuous = true;
-                                recognition.interimResults = true;
-                                recognition.lang = 'en-US';
-                                
-                                let finalTranscript = '';
-                                
-                                recognition.onresult = (event) => {
-                                    let interimTranscript = '';
+                                try {
+                                    const recognition = new SpeechRecognition();
+                                    recognition.continuous = true;
+                                    recognition.interimResults = true;
+                                    recognition.lang = 'en-US';
                                     
-                                    for (let i = event.resultIndex; i < event.results.length; i++) {
-                                        const result = event.results[i];
-                                        if (result.isFinal) {
-                                            finalTranscript += result[0].transcript + ' ';
+                                    let finalTranscript = '';
+                                    
+                                    recognition.onstart = () => {
+                                        console.log('Speech recognition started successfully');
+                                        transcript.style.display = 'block';
+                                        transcript.placeholder = 'Listening...';
+                                    };
+                                    
+                                    recognition.onresult = (event) => {
+                                        let interimTranscript = '';
+                                        
+                                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                                            const result = event.results[i];
+                                            if (result.isFinal) {
+                                                finalTranscript += result[0].transcript + ' ';
+                                            } else {
+                                                interimTranscript += result[0].transcript;
+                                            }
+                                        }
+                                        
+                                        // Show live transcription
+                                        transcript.value = finalTranscript + interimTranscript;
+                                    };
+                                    
+                                    recognition.onerror = (event) => {
+                                        console.error('Speech recognition error:', event.error, event);
+                                        
+                                        // Handle different error types
+                                        if (event.error === 'no-speech') {
+                                            transcript.placeholder = 'No speech detected - try again';
+                                        } else if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                                            // Permission denied
+                                            const msg = isSafari ? 
+                                                'Microphone access denied. Safari requires you to:\n1. Go to Safari > Settings for This Website\n2. Enable Microphone access\n3. Reload the page\n\nFor now, please type your note:' :
+                                                'Microphone access denied. Please enable microphone permissions.\n\nType your note instead:';
+                                            
+                                            const note = prompt(msg);
+                                            if (note) {
+                                                transcript.value = note;
+                                                finalTranscript = note;
+                                            }
+                                        } else if (event.error === 'service-not-allowed') {
+                                            // Safari specific - service not available
+                                            const msg = isSafari ? 
+                                                'Voice transcription is limited in Safari.\nFor best experience, use Chrome or Edge.\n\nPlease type your note:' :
+                                                'Voice service not available. Please type your note:';
+                                            
+                                            const note = prompt(msg);
+                                            if (note) {
+                                                transcript.value = note;
+                                                finalTranscript = note;
+                                            }
+                                        } else if (event.error === 'network') {
+                                            const note = prompt('Network error with voice service. Please type your note:');
+                                            if (note) {
+                                                transcript.value = note;
+                                                finalTranscript = note;
+                                            }
+                                        } else if (event.error === 'audio-capture') {
+                                            const note = prompt('No microphone found. Please type your note:');
+                                            if (note) {
+                                                transcript.value = note;
+                                                finalTranscript = note;
+                                            }
                                         } else {
-                                            interimTranscript += result[0].transcript;
+                                            // Unknown error - provide fallback
+                                            const note = prompt(`Voice error (${event.error}). Please type your note:`);
+                                            if (note) {
+                                                transcript.value = note;
+                                                finalTranscript = note;
+                                            }
                                         }
-                                    }
+                                    };
                                     
-                                    // Show live transcription
-                                    transcript.style.display = 'block';
-                                    transcript.value = finalTranscript + interimTranscript;
-                                };
-                                
-                                recognition.onerror = (event) => {
-                                    console.error('Speech recognition error:', event.error);
-                                    if (event.error === 'no-speech') {
-                                        transcript.value = '(No speech detected)';
-                                    } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                                        alert('Microphone permission denied. Please enable microphone access and try again.');
-                                        // Fallback to text input
-                                        const note = prompt('Voice transcription not available. Please type your note:');
-                                        if (note) {
-                                            transcript.value = note;
-                                            finalTranscript = note;
+                                    recognition.onend = () => {
+                                        console.log('Speech recognition ended');
+                                        if (!transcript.value) {
+                                            transcript.placeholder = 'Click microphone to try again';
                                         }
-                                    } else if (event.error === 'network') {
-                                        alert('Voice transcription requires a secure connection. Please type your note instead.');
-                                        const note = prompt('Please type your note:');
-                                        if (note) {
-                                            transcript.value = note;
-                                            finalTranscript = note;
-                                        }
+                                    };
+                                    
+                                    // Start speech recognition
+                                    recognition.start();
+                                    
+                                    // Store recognition instance to stop it later
+                                    modal.recognition = recognition;
+                                    
+                                } catch (err) {
+                                    console.error('Failed to start speech recognition:', err);
+                                    // Immediate fallback to text input
+                                    const msg = isSafari ? 
+                                        'Voice transcription has limited support in Safari.\nFor best experience, use Chrome or Edge.\n\nPlease type your note:' :
+                                        'Could not start voice transcription. Please type your note:';
+                                    
+                                    const note = prompt(msg);
+                                    if (note) {
+                                        transcript.value = note;
                                     }
-                                };
-                                
-                                recognition.onend = () => {
-                                    console.log('Speech recognition ended');
-                                };
-                                
-                                // Start speech recognition
-                                recognition.start();
-                                
-                                // Store recognition instance to stop it later
-                                modal.recognition = recognition;
+                                }
+                            } else {
+                                // No speech recognition support at all
+                                const note = prompt('Voice transcription not supported in this browser.\nPlease type your note:');
+                                if (note) {
+                                    transcript.value = note;
+                                }
                             }
                             
                             mediaRecorder.ondataavailable = event => {
