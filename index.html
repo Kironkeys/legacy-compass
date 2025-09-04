@@ -4213,11 +4213,8 @@ Farm: ${this.currentFarmName}`;
                     // Auto-start recording when modal opens
                     const startRecording = async () => {
                         try {
-                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                            mediaRecorder = new MediaRecorder(stream);
-                            audioChunks = [];
-                            
-                            // Set up Web Speech API for transcription
+                            // Only use Web Speech API for transcription (not MediaRecorder)
+                            // This avoids conflicts from requesting microphone access twice
                             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                             
                             // Detect Safari browser
@@ -4337,25 +4334,7 @@ Farm: ${this.currentFarmName}`;
                                 }
                             }
                             
-                            mediaRecorder.ondataavailable = event => {
-                                audioChunks.push(event.data);
-                            };
-                            
-                            mediaRecorder.onstop = () => {
-                                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                                // Stop speech recognition
-                                if (modal.recognition) {
-                                    modal.recognition.stop();
-                                }
-                                // Recording stopped, transcript should already be populated by speech recognition
-                                if (!transcript.value || transcript.value.trim() === '') {
-                                    transcript.value = '(No speech detected - please try again)';
-                                }
-                                saveBtn.style.display = 'block';
-                                status.textContent = 'Recording complete - review and save';
-                            };
-                            
-                            mediaRecorder.start();
+                            // Visual feedback that recording started
                             micIcon.style.background = '#ef4444';
                             micIcon.style.animation = 'pulse 1.5s infinite';
                             status.textContent = 'Recording... Speak now';
@@ -4371,14 +4350,16 @@ Farm: ${this.currentFarmName}`;
                     // Start recording immediately when modal opens
                     startRecording();
                     
-                    // If mic is clicked and we're already recording, stop it
+                    // If mic is clicked and we're recording, stop it
                     micIcon.addEventListener('click', async () => {
-                        if (mediaRecorder && mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                        if (modal.recognition) {
+                            modal.recognition.stop();
                             micIcon.style.animation = 'none';
+                            micIcon.style.background = '#374151';
                             stopBtn.style.display = 'none';
-                        } else if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                            saveBtn.style.display = 'block';
+                            status.textContent = 'Recording stopped - review and save';
+                        } else {
                             // If not recording, start again
                             startRecording();
                         }
@@ -4386,11 +4367,17 @@ Farm: ${this.currentFarmName}`;
                     
                     // Stop recording
                     stopBtn.addEventListener('click', () => {
-                        if (mediaRecorder && mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                        if (modal.recognition) {
+                            modal.recognition.stop();
                             micIcon.style.animation = 'none';
+                            micIcon.style.background = '#374151';
                             stopBtn.style.display = 'none';
+                            saveBtn.style.display = 'block';
+                            status.textContent = 'Recording complete - review and save';
+                            
+                            if (!transcript.value || transcript.value.trim() === '') {
+                                transcript.placeholder = 'No speech detected - click microphone to try again';
+                            }
                         }
                     });
                     
@@ -4405,9 +4392,8 @@ Farm: ${this.currentFarmName}`;
                     
                     // Cancel
                     cancelBtn.addEventListener('click', () => {
-                        if (mediaRecorder && mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                        if (modal.recognition) {
+                            modal.recognition.stop();
                         }
                         modal.remove();
                     });
