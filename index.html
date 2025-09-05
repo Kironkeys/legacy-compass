@@ -30,7 +30,8 @@
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Removed supabase-client.js as it conflicts with inline initialization -->
-    <script src="js/master-database.js"></script>
+    <script src="js/master-database.js?v=2.0"></script>
+    <script src="js/csv-universal-parser.js"></script>
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
@@ -261,12 +262,12 @@
                 </div>
                 <div class="w-px h-6 bg-gray-700"></div>
                 <div class="text-center">
-                    <span class="text-yellow-500 font-bold text-sm" x-text="stats.absentee">0</span>
+                    <span class="text-yellow-500 font-bold text-sm" x-text="stats.absentee">0%</span>
                     <span class="text-gray-500 text-[9px] block">ABSENTEE</span>
                 </div>
                 <div class="w-px h-6 bg-gray-700"></div>
                 <div class="text-center">
-                    <span class="text-green-500 font-bold text-sm" x-text="stats.avgEquity + '%'">0%</span>
+                    <span class="text-green-500 font-bold text-sm" x-text="stats.avgEquity">0%</span>
                     <span class="text-gray-500 text-[9px] block">AVG EQUITY</span>
                 </div>
                 <div class="w-px h-6 bg-gray-700"></div>
@@ -274,6 +275,25 @@
                     <span class="text-blue-500 font-bold text-sm" x-text="allTags.size">0</span>
                     <span class="text-gray-500 text-[9px] block">TAGS</span>
                 </div>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div x-show="totalPages > 1" class="flex items-center justify-center gap-2 mt-2">
+                <button @click="previousPage()" 
+                        :disabled="currentPage === 1"
+                        :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'"
+                        class="bg-gray-800 text-white px-3 py-1 rounded text-sm">
+                    ← Prev
+                </button>
+                <span class="text-white text-sm px-2">
+                    Page <span x-text="currentPage"></span> of <span x-text="totalPages"></span>
+                </span>
+                <button @click="nextPage()" 
+                        :disabled="currentPage === totalPages"
+                        :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'"
+                        class="bg-gray-800 text-white px-3 py-1 rounded text-sm">
+                    Next →
+                </button>
             </div>
         </div>
         
@@ -306,9 +326,9 @@
                             <div class="flex items-center gap-1 pr-2 border-r border-gray-600 mr-2">
                                 <select 
                                     @change="switchFarm($event.target.value)"
-                                    class="text-[10px] bg-gray-700 text-white px-2 py-1 rounded border border-gray-600 max-w-[100px]"
+                                    class="text-sm md:text-[10px] bg-gray-700 text-white px-3 md:px-2 py-2 md:py-1 rounded border border-gray-600 min-w-[120px] md:max-w-[100px]"
                                 >
-                                    <option value="">Farm</option>
+                                    <option value="">Select Farm</option>
                                     <template x-for="farm in userFarms" :key="farm.id">
                                         <option 
                                             :value="farm.id" 
@@ -319,10 +339,18 @@
                                 </select>
                                 <button 
                                     @click="createNewFarm()"
-                                    class="text-[10px] bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded font-bold"
+                                    class="text-xs md:text-[10px] bg-orange-600 hover:bg-orange-700 text-white px-2 py-2 md:py-1 rounded font-bold"
                                     title="Create New Farm"
                                 >
                                     +
+                                </button>
+                                <button 
+                                    @click="deleteFarm()"
+                                    x-show="userFarms && userFarms.length >= 1"
+                                    class="text-xs md:text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-2 md:py-1 rounded font-bold"
+                                    title="Delete Current Farm"
+                                >
+                                    🗑
                                 </button>
                             </div>
                         </template>
@@ -342,11 +370,6 @@
                                 :class="propertyFilter === 'condo' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
                                 @click="filterByType('condo')">
                             CONDO (<span x-text="typeCount.condo || 0"></span>)
-                        </button>
-                        <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
-                                :class="propertyFilter === 'commercial' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
-                                @click="filterByType('commercial')">
-                            COMM (<span x-text="typeCount.commercial || 0"></span>)
                         </button>
                         <button class="py-2 px-3 text-xs rounded-lg font-bold whitespace-nowrap"
                                 :class="propertyFilter === 'multi' ? 'bg-orange-500 text-black' : 'bg-gray-700 text-gray-400'"
@@ -398,7 +421,7 @@
                             </div>
                         </template>
                         
-                        <template x-for="property in paginatedProperties" :key="property.id">
+                        <template x-for="property in (paginatedProperties || [])" :key="property.id || property.apn">
                         <div class="bg-gray-900/90 p-2 mb-1 rounded-lg hover:bg-gray-800/90 transition-colors border border-gray-700/50 cursor-pointer"
                              @click="showPropertyDetails(property)">
                             
@@ -518,7 +541,11 @@
                                     <div class="text-gray-400 text-xs uppercase">Equity</div>
                                 </div>
                                 <div class="bg-gray-800 p-3 rounded-lg text-center">
-                                    <div class="text-green-400 text-xl font-bold">$<span x-text="Math.floor((parseInt(selectedProperty?.['Purchase Price'] || 0))/1000) + 'k'"></span></div>
+                                    <div class="text-green-400 text-xl font-bold" x-text="(() => {
+                                        const price = parseInt(selectedProperty?.['Purchase Price']);
+                                        if (!price || price <= 0) return 'N/A';
+                                        return '$' + Math.floor(price/1000) + 'k';
+                                    })()"></div>
                                     <div class="text-gray-400 text-xs uppercase">Purchase</div>
                                 </div>
                                 <div class="bg-gray-800 p-3 rounded-lg text-center">
@@ -545,7 +572,7 @@
                                         </div>
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Mailing:</span>
-                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.['Mailing City'] || 'N/A'"></span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.mailingAddress || selectedProperty?.['Mailing Address'] || selectedProperty?.['Mail Address'] || selectedProperty?.address || 'N/A'"></span>
                                         </div>
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Phone:</span>
@@ -560,15 +587,15 @@
                                     <div class="space-y-2">
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Size:</span>
-                                            <span class="text-white font-semibold text-sm" x-text="(selectedProperty?.['Building Size'] || 0) + ' sqft'"></span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.['Building Size'] ? selectedProperty['Building Size'] + ' sqft' : 'N/A'"></span>
                                         </div>
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Rooms:</span>
-                                            <span class="text-white font-bold text-sm" x-text="`${selectedProperty?.Bedrooms || 0}bd / ${selectedProperty?.Baths || 0}ba`"></span>
+                                            <span class="text-white font-bold text-sm" x-text="(selectedProperty?.Bedrooms || selectedProperty?.Baths) ? `${selectedProperty?.Bedrooms || 0}bd / ${selectedProperty?.Baths || 0}ba` : 'N/A'"></span>
                                         </div>
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Lot:</span>
-                                            <span class="text-white font-semibold text-sm" x-text="(selectedProperty?.['Lot Size Total Acreage'] || 0) + ' acres'"></span>
+                                            <span class="text-white font-semibold text-sm" x-text="selectedProperty?.['Lot Size Total Acreage'] ? selectedProperty['Lot Size Total Acreage'] + ' acres' : 'N/A'"></span>
                                         </div>
                                         <div class="flex flex-col">
                                             <span class="text-gray-400 text-xs">Year:</span>
@@ -886,7 +913,7 @@
                 audioChunks: [],
                 
                 // Pagination
-                maxDisplayCount: 10000, // Max properties to show at once - increased from 2000
+                maxDisplayCount: 100, // Max properties to show at once - optimized for performance
                 currentPage: 1,
                 totalPages: 1,
                 displayedCount: 0,
@@ -1953,18 +1980,40 @@
                 updateTypeCounts(properties) {
                     // Reset counts
                     this.typeCount = {
+                        all: properties.length,  // Set total count
                         sfr: 0,
                         condo: 0,
                         commercial: 0,
                         multi: 0
                     };
                     
-                    // Count each type
+                    // Count each type - check multiple possible field names
                     properties.forEach(p => {
-                        if (this.typeCount[p.type] !== undefined) {
-                            this.typeCount[p.type]++;
+                        // Check multiple field names that might contain property type
+                        const propType = (p.propertyType || p.type || p.property_type || p['Property Type'] || 'SFR').toUpperCase();
+                        
+                        // Normalize using Universal Parser logic if available
+                        const normalizedType = window.UniversalCSVParser ? 
+                            window.UniversalCSVParser.normalizePropertyType(propType) : 
+                            propType;
+                        
+                        // Count based on normalized type
+                        if (normalizedType === 'SFR') {
+                            this.typeCount.sfr++;
+                        } else if (normalizedType === 'CONDO') {
+                            this.typeCount.condo++;
+                        } else if (normalizedType === 'COMM') {
+                            this.typeCount.commercial++;
+                        } else if (normalizedType === 'MULTI') {
+                            this.typeCount.multi++;
+                        } else {
+                            // Default to SFR if unknown
+                            this.typeCount.sfr++;
                         }
                     });
+                    
+                    console.log('📊 Property type counts:', this.typeCount);
+                    console.log(`SFR: ${this.typeCount.sfr}, CONDO: ${this.typeCount.condo}, COMM: ${this.typeCount.commercial}, MULTI: ${this.typeCount.multi}`);
                 },
                 
                 selectProperty(property) {
@@ -2388,7 +2437,23 @@
                     
                     // Apply property type filter
                     if (this.propertyFilter !== 'all') {
-                        filtered = filtered.filter(p => p.type === this.propertyFilter);
+                        filtered = filtered.filter(p => {
+                            // Check all possible property type fields
+                            const propType = (p.propertyType || p.type || p.property_type || p['Property Type'] || 'SFR').toUpperCase();
+                            const filterType = this.propertyFilter.toUpperCase();
+                            
+                            // Match the property type
+                            if (filterType === 'SFR') {
+                                return propType.includes('SFR') || propType.includes('SINGLE');
+                            } else if (filterType === 'CONDO') {
+                                return propType.includes('CONDO') || propType.includes('TOWN');
+                            } else if (filterType === 'COMMERCIAL') {
+                                return propType.includes('COMM') || propType.includes('RETAIL');
+                            } else if (filterType === 'MULTI') {
+                                return propType.includes('MULTI') || propType.includes('DUPLEX');
+                            }
+                            return false;
+                        });
                     }
                     
                     // Apply tag filter
@@ -2543,18 +2608,20 @@
                     this.propertyFilter = type;
                     this.currentPage = 1;
                     
-                    // Check what types are in the data
+                    // Debug: Check what types are actually in the data
                     if (type !== 'all') {
                         const typeCounts = {};
                         this.properties.forEach(p => {
-                            const pType = p.type || 'unknown';
+                            const pType = p.propertyType || p.type || p.property_type || 'UNKNOWN';
                             typeCounts[pType] = (typeCounts[pType] || 0) + 1;
                         });
                         console.log('Property types in data:', typeCounts);
+                        console.log('Sample property:', this.properties[0]);
                     }
                     
                     this.filterProperties();
-                    console.log('Filtered count:', this.filteredProperties.length);
+                    console.log('Filtered count:', this.filteredProperties.length, 'out of', this.properties.length);
+                    this.updatePagination();
                 },
                 
                 filterByTag(tag) {
@@ -2587,6 +2654,47 @@
                     // Load properties from new farm
                     const properties = await window.MasterDatabase.loadFarmProperties(this.supabase, farmId);
                     this.properties = properties;
+                    
+                    // Recalculate type counts
+                    this.typeCount = {
+                        all: properties.length,
+                        sfr: 0,
+                        condo: 0,
+                        multi: 0,
+                        commercial: 0
+                    };
+                    
+                    properties.forEach(p => {
+                        let type = p.propertyType || p.property_type || p.type || '';
+                        
+                        // If no type, detect from address/sqft
+                        if (!type || type === '') {
+                            const address = (p.address || '').toLowerCase();
+                            const sqft = parseInt(p.sqft) || 0;
+                            
+                            if (address.includes('unit') || address.includes('#') || 
+                                address.includes('apt') || (sqft > 0 && sqft < 1000)) {
+                                type = 'CONDO';
+                                p.propertyType = 'CONDO';
+                            } else {
+                                type = 'SFR';
+                                p.propertyType = 'SFR';
+                            }
+                        }
+                        
+                        type = type.toUpperCase();
+                        if (type === 'RCON' || type === 'RTRW') {
+                            type = 'CONDO';
+                            p.propertyType = 'CONDO';
+                        }
+                        
+                        if (type === 'SFR') this.typeCount.sfr++;
+                        else if (type === 'CONDO' || type === 'TOWNHOUSE') this.typeCount.condo++;
+                        else if (type === 'MULTI') this.typeCount.multi++;
+                        else if (type === 'COMM' || type === 'COMMERCIAL') this.typeCount.commercial++;
+                        else this.typeCount.sfr++;
+                    });
+                    
                     this.filteredProperties = [...properties];
                     
                     // Clear and reload notes/hot list
@@ -2642,6 +2750,67 @@
                             this.switchFarm(newFarm.id);
                         });
                         alert(`Created farm: ${farmName}`);
+                    }
+                },
+                
+                async deleteFarm() {
+                    // Safety checks
+                    if (!window.MasterDatabase.currentFarm) {
+                        alert('No farm selected');
+                        return;
+                    }
+                    
+                    if (!this.userFarms || this.userFarms.length <= 1) {
+                        alert('Cannot delete your only farm');
+                        return;
+                    }
+                    
+                    const farmToDelete = window.MasterDatabase.currentFarm;
+                    const propertyCount = this.filteredProperties.length;
+                    
+                    // Create detailed confirmation message
+                    const confirmMessage = `Are you sure you want to delete the farm "${farmToDelete.farm_name}"?\n\n` +
+                                         `This will remove ${propertyCount} properties from this farm.\n\n` +
+                                         `📝 Note: Property updates (addresses, prices, owner info) will be preserved in the master database for future use.\n\n` +
+                                         `Type the farm name to confirm: ${farmToDelete.farm_name}`;
+                    
+                    const userInput = prompt(confirmMessage);
+                    
+                    // Check if user typed the farm name (case-insensitive)
+                    if (userInput && userInput.toLowerCase() !== farmToDelete.farm_name.toLowerCase()) {
+                        alert('Farm name did not match. Deletion cancelled.');
+                        return;
+                    }
+                    
+                    if (userInput === null) {
+                        // User cancelled
+                        return;
+                    }
+                    
+                    try {
+                        console.log('Attempting to delete farm:', farmToDelete.farm_name, 'ID:', farmToDelete.id);
+                        
+                        // Call the database deletion method with supabase client
+                        const success = await window.MasterDatabase.deleteFarm(farmToDelete.id, this.supabase);
+                        
+                        if (success) {
+                            // Switch to another farm before reloading
+                            const remainingFarms = this.userFarms.filter(f => f.id !== farmToDelete.id);
+                            if (remainingFarms.length > 0) {
+                                await this.switchFarm(remainingFarms[0].id);
+                            }
+                            
+                            // Reload farms with proper parameters
+                            await window.MasterDatabase.loadUserFarms(this.supabase, this.currentUser);
+                            this.userFarms = window.MasterDatabase.userFarms;
+                            
+                            alert(`Farm "${farmToDelete.farm_name}" has been deleted successfully.`);
+                        } else {
+                            alert('Failed to delete farm. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting farm:', error);
+                        alert('An error occurred while deleting the farm.');
                     }
                 },
                 
@@ -2800,8 +2969,52 @@
                             // Set properties
                             this.properties = farmProperties;
                             
-                            // Restore notes and hot list
+                            // Recalculate type counts from loaded properties
+                            this.typeCount = {
+                                all: farmProperties.length,
+                                sfr: 0,
+                                condo: 0,
+                                multi: 0,
+                                commercial: 0
+                            };
+                            
+                            // Count property types and fix missing types
                             farmProperties.forEach(p => {
+                                // Try to get property type from various fields
+                                let type = p.propertyType || p.property_type || p.type || '';
+                                
+                                // If no type, detect from address/sqft
+                                if (!type || type === '') {
+                                    const address = (p.address || '').toLowerCase();
+                                    const sqft = parseInt(p.sqft) || 0;
+                                    
+                                    // Check for condo indicators
+                                    if (address.includes('unit') || address.includes('#') || 
+                                        address.includes('apt') || (sqft > 0 && sqft < 1000)) {
+                                        type = 'CONDO';
+                                        p.propertyType = 'CONDO';
+                                    } else {
+                                        type = 'SFR';
+                                        p.propertyType = 'SFR';
+                                    }
+                                }
+                                
+                                // Normalize type to uppercase
+                                type = type.toUpperCase();
+                                
+                                // Map Rcon/Rtrw to CONDO
+                                if (type === 'RCON' || type === 'RTRW') {
+                                    type = 'CONDO';
+                                    p.propertyType = 'CONDO';
+                                }
+                                
+                                // Count by type
+                                if (type === 'SFR') this.typeCount.sfr++;
+                                else if (type === 'CONDO' || type === 'TOWNHOUSE') this.typeCount.condo++;
+                                else if (type === 'MULTI' || type === 'MULTI-FAMILY') this.typeCount.multi++;
+                                else if (type === 'COMM' || type === 'COMMERCIAL') this.typeCount.commercial++;
+                                else this.typeCount.sfr++; // Default to SFR if unknown
+                                
                                 if (p.privateNotes) {
                                     this.propertyNotes[p.apn] = p.privateNotes;
                                 }
@@ -2810,8 +3023,11 @@
                                 }
                             });
                             
+                            console.log('📊 Type counts after loading:', this.typeCount);
+                            
                             // Update filtered properties and pagination
                             this.filteredProperties = [...this.properties];
+                            this.updateTypeCounts(this.properties);
                             this.updatePagination();
                             this.addMapMarkers();
                             this.calculateStats();
@@ -2819,10 +3035,14 @@
                             // No cloud data - user has no farms yet
                             console.log('No farms found for user');
                             this.properties = [];
+                            this.filteredProperties = [];
+                            this.updatePagination();
                         }
                     } catch (error) {
                         console.error('Error loading user data:', error);
                         this.properties = [];
+                        this.filteredProperties = [];
+                        this.updatePagination();
                     }
                 },
 
@@ -2868,20 +3088,34 @@
                 },
 
                 updatePagination() {
-                    this.totalPages = Math.ceil(this.filteredProperties.length / this.maxDisplayCount);
+                    // Initialize if not set
+                    if (!this.filteredProperties) {
+                        this.filteredProperties = [];
+                    }
+                    
+                    // Ensure filteredProperties is always an array
+                    if (!Array.isArray(this.filteredProperties)) {
+                        console.warn('filteredProperties is not an array, resetting to empty array');
+                        this.filteredProperties = [];
+                    }
+                    
+                    this.totalPages = Math.ceil(this.filteredProperties.length / this.maxDisplayCount) || 1;
                     this.currentPage = Math.min(this.currentPage, Math.max(1, this.totalPages));
                     
                     const start = (this.currentPage - 1) * this.maxDisplayCount;
                     const end = start + this.maxDisplayCount;
                     
-                    this.paginatedProperties = this.filteredProperties.slice(start, end);
+                    // Ensure paginatedProperties is always an array
+                    const sliced = this.filteredProperties.slice(start, end);
+                    this.paginatedProperties = Array.isArray(sliced) ? sliced : [];
                     this.displayedCount = this.paginatedProperties.length;
                     
                     console.log('Updated pagination:', {
                         total: this.filteredProperties.length,
                         paginated: this.paginatedProperties.length,
                         currentPage: this.currentPage,
-                        totalPages: this.totalPages
+                        totalPages: this.totalPages,
+                        paginatedProps: this.paginatedProperties
                     });
                 },
                 
@@ -2972,11 +3206,12 @@
                 calculateStats() {
                     this.stats.total = this.properties.length;
                     const absenteeCount = this.properties.filter(p => p.absentee).length;
-                    this.stats.absentee = this.stats.total > 0 ? Math.round((absenteeCount / this.stats.total) * 100) : 0;
+                    const absenteePercent = this.stats.total > 0 ? Math.round((absenteeCount / this.stats.total) * 100) : 0;
+                    this.stats.absentee = absenteePercent + '%';  // Add % sign for display
                     
                     const avgEquity = this.stats.total > 0 ? 
                         this.properties.reduce((sum, p) => sum + (p.equity || 0), 0) / this.stats.total : 0;
-                    this.stats.avgEquity = Math.round(avgEquity);
+                    this.stats.avgEquity = Math.round(avgEquity) + '%';  // Add % sign for display
                     
                     // Count property types
                     this.typeCount = {
@@ -3018,8 +3253,22 @@
                             // Read file content
                             const text = await file.text();
                             
-                            // Parse CSV
-                            const parsed = this.parseCSV(text);
+                            // Parse CSV using Universal Parser
+                            const parseResult = window.UniversalCSVParser ? 
+                                window.UniversalCSVParser.parseCSV(text, file.name) :
+                                { properties: this.parseCSV(text), stats: {} };
+                            
+                            const parsed = parseResult.properties;
+                            
+                            // Update type counts from parser stats
+                            if (parseResult.stats) {
+                                this.typeCount.sfr = parseResult.stats.sfr || 0;
+                                this.typeCount.condo = parseResult.stats.condo || 0;
+                                this.typeCount.multi = parseResult.stats.multi || 0;
+                                this.typeCount.commercial = parseResult.stats.comm || 0;
+                                
+                                console.log('📊 Property Type Breakdown:', this.typeCount);
+                            }
                             
                             if (parsed && parsed.length > 0) {
                                 // Update properties
@@ -3056,6 +3305,26 @@
                                         console.log(`Saved batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(parsed.length/batchSize)}`);
                                     }
                                     console.log('✅ All properties saved to cloud database');
+                                    
+                                    // CRITICAL: Clear cache and force reload from database
+                                    console.log('🔄 Clearing cache and reloading from database...');
+                                    localStorage.removeItem('legacy_compass_farm');
+                                    localStorage.removeItem('propertyTags');
+                                    localStorage.removeItem('property_notes');
+                                    
+                                    // Force reload properties from database with updated data
+                                    const farmProperties = await window.MasterDatabase.loadFarmProperties(
+                                        this.supabase, 
+                                        window.MasterDatabase.currentFarm.id
+                                    );
+                                    
+                                    console.log(`✅ Reloaded ${farmProperties.length} properties with updated data`);
+                                    this.properties = farmProperties;
+                                    this.filteredProperties = [...this.properties];
+                                    this.updateTypeCounts(this.properties);
+                                    this.updatePagination();
+                                    this.calculateStats();
+                                    
                                 } else {
                                     console.log('⚠️ Not logged in or no farm selected - data only saved locally');
                                 }
@@ -3187,7 +3456,7 @@ Farm: ${this.currentFarmName}`;
                         purchasePrice: this.findColumn(headers, ['Purchase Price', 'purchase price', 'price', 'Sale Price']),
                         purchaseDate: this.findColumn(headers, ['Purchase Date', 'purchase date', 'date', 'Sale Date']),
                         // Mailing address fields
-                        mailAddress: this.findColumn(headers, ['Mail Address', 'mail address', 'Mailing Address', 'mailing address']),
+                        mailAddress: this.findColumn(headers, ['owner_mailing_address', 'Mail Address', 'mail address', 'Mailing Address', 'mailing address']),
                         mailCity: this.findColumn(headers, ['Mailing City', 'mailing city', 'Mail City']),
                         mailState: this.findColumn(headers, ['Mailing State', 'mailing state', 'Mail State']),
                         mailZip: this.findColumn(headers, ['Mailing Zip Code', 'mailing zip', 'Mail Zip'])

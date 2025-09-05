@@ -9,6 +9,54 @@ window.MasterDatabase = {
     currentFarm: null,
     
     /**
+     * Validate and clean date values
+     */
+    validateDate(dateStr) {
+        if (!dateStr) return null;
+        
+        // Check for invalid dates like "0000-00-00" or "00/00/0000"
+        if (dateStr === '0000-00-00' || dateStr === '00/00/0000' || 
+            dateStr === '0' || dateStr === '0000') {
+            return null;
+        }
+        
+        // Try to parse the date
+        const parsed = new Date(dateStr);
+        if (isNaN(parsed.getTime())) {
+            return null;
+        }
+        
+        // Check if date is reasonable (between 1900 and 2030)
+        const year = parsed.getFullYear();
+        if (year < 1900 || year > 2030) {
+            return null;
+        }
+        
+        // Return in YYYY-MM-DD format
+        return parsed.toISOString().split('T')[0];
+    },
+    
+    /**
+     * Parse and validate positive integers (no negative values)
+     */
+    parsePositiveInt(value) {
+        if (!value && value !== 0) return null;
+        const num = parseInt(value);
+        // Return null for invalid or negative numbers
+        return (isNaN(num) || num < 0) ? null : num;
+    },
+    
+    /**
+     * Parse and validate positive floats (no negative values)
+     */
+    parsePositiveFloat(value) {
+        if (!value && value !== 0) return null;
+        const num = parseFloat(value);
+        // Return null for invalid or negative numbers
+        return (isNaN(num) || num < 0) ? null : num;
+    },
+    
+    /**
      * Initialize master database connection
      */
     async initialize(supabase, user) {
@@ -91,22 +139,116 @@ window.MasterDatabase = {
         if (!farmId) return [];
         
         try {
-            const { data, error } = await supabase
-                .from('farm_properties')
-                .select(`
-                    *,
-                    master_properties!inner(*)
-                `)
-                .eq('farm_id', farmId)
-                .order('added_at', { ascending: false });
+            // Fetch ALL properties using pagination (Supabase limits to 1000 per request)
+            let allData = [];
+            let offset = 0;
+            const limit = 1000; // Supabase max per request
+            let hasMore = true;
             
-            if (error) throw error;
+            console.log('📊 Starting to load all farm properties...');
+            
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('farm_properties')
+                    .select(`
+                        *,
+                        master_properties!inner(*)
+                    `)
+                    .eq('farm_id', farmId)
+                    .order('added_at', { ascending: false })
+                    .range(offset, offset + limit - 1);
+                
+                if (error) throw error;
+                
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    console.log(`📦 Loaded batch: ${data.length} properties (Total: ${allData.length})`);
+                    
+                    // If we got less than limit, we've reached the end
+                    hasMore = data.length === limit;
+                    offset += limit;
+                } else {
+                    hasMore = false;
+                }
+            }
+            
+            console.log('🔍 Total properties loaded from Supabase:', allData.length);
             
             // Flatten the response and add farm-specific data
-            const properties = (data || []).map(item => {
+            const properties = allData.map(item => {
                 // Debug logging
                 if (item.notes || item.private_notes) {
                     console.log('📝 Property has notes:', item.apn, 'notes:', item.notes, 'private_notes:', item.private_notes);
+                }
+                
+                // Get property type from database
+                let propertyType = item.master_properties.property_type;
+                
+                // Normalize existing property types
+                if (propertyType) {
+                    const upperType = propertyType.toUpperCase();
+                    // Only trust clear property type codes
+                    if (upperType === 'SFR' || upperType === 'SINGLE FAMILY') {
+                        propertyType = 'SFR';
+                    } else if (upperType === 'CONDO' || upperType === 'CONDOMINIUM') {
+                        propertyType = 'CONDO';
+                    } else if (upperType === 'MULTI' || upperType === 'MULTI-FAMILY') {
+                        propertyType = 'MULTI';
+                    } else if (upperType === 'RCON' || upperType === 'RTRW') {
+                        // These are NOT property types - Rcon is construction code, Rtrw is tax district
+                        // We'll detect the actual type based on other factors below
+                        propertyType = null;
+                    }
+                }
+                
+                // If property type is missing, try to detect it from other fields
+                if (!propertyType || propertyType === '' || propertyType === 'null' || propertyType === null) {
+                    // Check multiple indicators for condos
+                    const address = (item.master_properties.property_address || '').toLowerCase();
+                    const sqft = parseInt(item.master_properties.square_feet) || 0;
+                    
+                    // Strong condo indicators - explicit unit/apt markers
+                    const hasUnitNumber = address.match(/\bunit\s+\d+/i) || 
+                                         address.match(/\bapt\s+\d+/i) || 
+                                         address.match(/#\d+/) ||
+                                         address.includes(' unit ');
+                    
+                    // Better detection logic based on multiple factors
+                    
+                    // Check for explicit unit/apt numbers (strongest indicator)
+                    if (hasUnitNumber) {
+                        propertyType = 'CONDO';
+                    }
+                    // Very small properties (<900 sqft) are usually condos
+                    else if (sqft > 0 && sqft < 900) {
+                        propertyType = 'CONDO';
+                    }
+                    // Very large properties (>10,000 sqft) are either SFR or commercial
+                    else if (sqft > 10000) {
+                        // Could be large estate home or commercial - default to SFR for residential
+                        propertyType = 'SFR';
+                    }
+                    // Check for patterns like "260 Industrial Pkwy 1" (ends with small number)
+                    else if (address.match(/\s+\d{1,2}$/) && !address.match(/(st|street|ave|avenue|dr|drive|rd|road|way|court|place|ln|lane)\s*$/i)) {
+                        // Likely a unit number at the end
+                        propertyType = 'CONDO';
+                    }
+                    // Medium properties (900-3000 sqft) - check other clues
+                    else if (sqft > 0 && sqft <= 3000) {
+                        // If it has keywords suggesting attached housing
+                        if (address.includes('townhouse') || address.includes('townhome') || 
+                            address.includes('commons') || address.includes('villas')) {
+                            propertyType = 'CONDO';
+                        } else {
+                            propertyType = 'SFR'; // Default for medium-sized properties
+                        }
+                    }
+                    else {
+                        // Default to SFR for everything else
+                        propertyType = 'SFR';
+                    }
+                    
+                    console.log(`🏠 Auto-detected type for ${address}: ${propertyType} (sqft: ${sqft})`);
                 }
                 
                 return {
@@ -137,8 +279,12 @@ window.MasterDatabase = {
                 'Purchase Price': item.master_properties.purchase_price || 0,
                 'Purchase Date': item.master_properties.purchase_date || '',
                 'Mailing City': item.master_properties.mailing_city || item.master_properties.city,
+                'Mailing Address': item.master_properties.mailing_address || item.master_properties.property_address,
+                mailingAddress: item.master_properties.mailing_address || item.master_properties.property_address,
                 'Lot Size': item.master_properties.lot_size,
-                type: item.master_properties.property_type,
+                type: propertyType,
+                propertyType: propertyType,
+                'Property Type': propertyType,
                 // Keep lowercase versions too for compatibility
                 bedrooms: item.master_properties.bedrooms,
                 bathrooms: item.master_properties.bathrooms,
@@ -148,6 +294,25 @@ window.MasterDatabase = {
             });
             
             console.log('🏘️ Loaded', properties.length, 'properties from farm');
+            
+            // Debug: Check property types
+            const typeCounts = {};
+            properties.forEach(p => {
+                const type = p.property_type || p.propertyType || p.type || 'UNKNOWN';
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+            });
+            console.log('📊 Property types in database:', typeCounts);
+            
+            // If first few properties, log their types
+            if (properties.length > 0) {
+                console.log('Sample property types:', properties.slice(0, 3).map(p => ({
+                    address: p.address,
+                    type: p.type,
+                    propertyType: p.propertyType,
+                    property_type: p.property_type
+                })));
+            }
+            
             return properties;
         } catch (error) {
             console.error('Error loading farm properties:', error);
@@ -192,62 +357,149 @@ window.MasterDatabase = {
     },
     
     /**
+     * Detect property type from CSV data
+     */
+    detectPropertyType(prop) {
+        // Check explicit type field first
+        const explicitType = prop.type || prop['Property Type'] || prop['PropertyType'];
+        
+        // Check common type indicators
+        if (explicitType) {
+            const upperType = explicitType.toUpperCase();
+            
+            // Single Family Residential
+            if (upperType.includes('SFR') || upperType.includes('SINGLE') || 
+                upperType.includes('HOUSE') || upperType.includes('DETACHED')) {
+                return 'SFR';
+            }
+            
+            // Condos/Townhomes
+            if (upperType.includes('CONDO') || upperType.includes('TOWNHOME') || 
+                upperType.includes('TOWNHOUSE') || upperType.includes('ATTACHED')) {
+                return 'CONDO';
+            }
+            
+            // Commercial
+            if (upperType.includes('COMM') || upperType.includes('RETAIL') || 
+                upperType.includes('OFFICE') || upperType.includes('INDUSTRIAL') ||
+                upperType.includes('WAREHOUSE')) {
+                return 'COMM';
+            }
+            
+            // Multi-family
+            if (upperType.includes('MULTI') || upperType.includes('DUPLEX') || 
+                upperType.includes('TRIPLEX') || upperType.includes('FOURPLEX') ||
+                upperType.includes('APARTMENT') || upperType.includes('UNITS')) {
+                return 'MULTI';
+            }
+        }
+        
+        // Check address patterns
+        const address = (prop.address || prop.Address || '').toLowerCase();
+        if (address.includes('unit') || address.includes('apt') || address.includes('#')) {
+            return 'CONDO';
+        }
+        
+        // Check for unit count
+        const units = parseInt(prop.units) || parseInt(prop.Units) || 0;
+        if (units > 1) return 'MULTI';
+        
+        // Default to SFR
+        return 'SFR';
+    },
+    
+    /**
      * Save multiple properties to farm (for CSV upload)
      */
     async savePropertiesToFarm(supabase, user, farmId, properties) {
         try {
+            // Debug logging for first property
+            if (properties.length > 0) {
+                console.log('🔍 First property absentee value:', properties[0].absentee, 'Type:', typeof properties[0].absentee);
+            }
+            
             // First, insert properties into master_properties table
-            const masterProps = properties.map(prop => ({
+            const masterProps = properties.map(prop => {
+                // Properly handle boolean absentee status
+                const isAbsentee = prop.absentee === true || prop.absentee === 'true' || 
+                                  prop.absentee === 'Absentee Owner' || prop.absentee === 1;
+                
+                // Debug specific properties
+                if (prop.address && prop.address.includes('35 Raintree Ct 10')) {
+                    console.log('🏠 35 Raintree Ct 10 - absentee value:', prop.absentee, 'is_absentee:', isAbsentee);
+                }
+                
+                return {
                 apn: prop.apn || prop.id || `temp_${Date.now()}_${Math.random()}`,
                 property_address: prop.address || prop.Address || '',
                 owner_name: prop.owner || prop.Owner || '',
                 latitude: parseFloat(prop.lat) || parseFloat(prop.latitude) || null,
                 longitude: parseFloat(prop.lng) || parseFloat(prop.longitude) || null,
-                is_absentee: prop.absentee === true || prop.absentee === 'true' || prop.absentee === 'Absentee Owner',
+                is_absentee: isAbsentee,
                 city: prop.city || prop['Site City'] || 'Hayward',
                 state: prop.state || prop['Site State'] || 'CA',
                 zip_code: prop.zip || prop['Site Zip Code'] || '',
-                bedrooms: parseInt(prop.bedrooms) || parseInt(prop.Bedrooms) || null,
-                bathrooms: parseFloat(prop.bathrooms) || parseFloat(prop.Baths) || null,
-                square_feet: parseInt(prop.sqft) || parseInt(prop['Building Size']) || null,
-                year_built: parseInt(prop.yearBuilt) || parseInt(prop['Year Built']) || null,
-                property_type: prop.type || prop['Property Type'] || 'SFR',
+                bedrooms: this.parsePositiveInt(prop.bedrooms) || this.parsePositiveInt(prop.Bedrooms),
+                bathrooms: this.parsePositiveFloat(prop.bathrooms) || this.parsePositiveFloat(prop.Baths),
+                square_feet: this.parsePositiveInt(prop.sqft) || this.parsePositiveInt(prop['Building Size']),
+                year_built: this.parsePositiveInt(prop.yearBuilt) || this.parsePositiveInt(prop['Year Built']),
+                property_type: prop.propertyType || prop.type || prop['Property Type'] || 'SFR',
                 // Add missing fields from CSV
-                purchase_price: parseInt(prop.purchasePrice) || parseInt(prop['Purchase Price']) || null,
-                purchase_date: prop.purchaseDate || prop['Purchase Date'] || null,
+                purchase_price: this.parsePositiveInt(prop.purchasePrice) || this.parsePositiveInt(prop['Purchase Price']),
+                purchase_date: this.validateDate(prop.purchaseDate || prop['Purchase Date']),
                 mailing_city: prop.mailCity || prop['Mailing City'] || null,
-                lot_size: parseFloat(prop['Lot Size (SqFt)']) || null
-            }));
+                mailing_address: (() => {
+                    const mailingAddr = prop.mailingAddress || prop['Mailing Address'] || prop.owner_mailing_address || prop['owner_mailing_address'];
+                    const propAddr = prop.property_address || prop.address;
+                    
+                    // Debug logging for mailing address
+                    if (mailingAddr && mailingAddr !== propAddr) {
+                        console.log('💌 Saving different mailing address:', {
+                            apn: prop.apn,
+                            property: propAddr,
+                            mailing: mailingAddr
+                        });
+                    }
+                    
+                    return mailingAddr || propAddr;
+                })(),
+                lot_size: this.parsePositiveFloat(prop['Lot Size (SqFt)']),
+                number_of_units: this.parsePositiveInt(prop.units) || this.parsePositiveInt(prop['Number of Units'])
+                };  // Close the return object
+            }); // Close the map function
 
-            // Insert into master_properties (skip duplicates)
+            // Don't insert into master_properties - they should already exist
+            // The master database has 48,555 Hayward properties already!
+            // Just update the ones that exist with new info (like property type)
             const { error: masterError } = await supabase
                 .from('master_properties')
                 .upsert(masterProps, { 
                     onConflict: 'apn',
-                    ignoreDuplicates: true 
+                    ignoreDuplicates: false  // MUST be false to update existing records!
                 });
 
             if (masterError && masterError.code !== '23505') {
-                console.error('Error inserting master properties:', masterError);
+                console.error('Error updating master properties:', masterError);
             }
 
-            // Now link them to the farm via farm_properties
-            const farmLinks = properties.map(prop => ({
-                farm_id: farmId,
-                user_id: user.id,
-                apn: prop.apn || prop.id || `temp_${Date.now()}_${Math.random()}`,
-                private_notes: prop.privateNotes || '',
-                is_hot_list: prop.isHotList || false,
-                priority: 0,
-                status: 'active'
-            }));
+            // Link ALL properties to the farm (they should all exist in master)
+            const farmLinks = properties
+                .map(prop => ({
+                    farm_id: farmId,
+                    user_id: user.id,
+                    apn: prop.apn || prop.id,
+                    private_notes: prop.privateNotes || '',
+                    is_hot_list: prop.isHotList || false,
+                    priority: 0,
+                    status: 'active'
+                }));
 
             // Insert farm links and return the data to get IDs
             const { data, error } = await supabase
                 .from('farm_properties')
                 .upsert(farmLinks, { 
                     onConflict: 'farm_id,apn',
-                    ignoreDuplicates: true 
+                    ignoreDuplicates: false  // MUST be false to allow re-linking with updated data
                 })
                 .select();
 
@@ -480,5 +732,59 @@ window.MasterDatabase = {
             console.error('Error recording visit:', error);
             return false;
         }
+    },
+    
+    /**
+     * Delete a farm and all its associated properties
+     */
+    async deleteFarm(farmId, supabaseClient) {
+        try {
+            // Accept supabase as parameter or try to get from window
+            const supabase = supabaseClient || window.supabaseClient || window.supabase;
+            if (!supabase) {
+                console.error('Supabase not initialized');
+                return false;
+            }
+            
+            console.log(`🗑 Deleting farm ID: ${farmId}`);
+            
+            // First, delete all farm_properties associated with this farm
+            const { error: propError } = await supabase
+                .from('farm_properties')
+                .delete()
+                .eq('farm_id', farmId);
+            
+            if (propError) {
+                console.error('Error deleting farm properties:', propError);
+                return false;
+            }
+            
+            // Then delete the farm itself
+            const { error: farmError } = await supabase
+                .from('user_farms')
+                .delete()
+                .eq('id', farmId);
+            
+            if (farmError) {
+                console.error('Error deleting farm:', farmError);
+                return false;
+            }
+            
+            // Remove from local cache
+            this.userFarms = this.userFarms.filter(f => f.id !== farmId);
+            
+            // Clear current farm if it was the deleted one
+            if (this.currentFarm && this.currentFarm.id === farmId) {
+                this.currentFarm = null;
+            }
+            
+            console.log(`✅ Successfully deleted farm ID: ${farmId}`);
+            return true;
+            
+        } catch (error) {
+            console.error('Error in deleteFarm:', error);
+            return false;
+        }
     }
 };
+// Cache bust removed - version 2.0
